@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   DEFAULT_SETTINGS,
@@ -12,43 +13,22 @@ import {
   createStock,
   summarizeTradeLog,
 } from "@/lib/infiniteBuy";
-
-const STOCKS_KEY = "infinite-buy:stocks";
-const ACTIVE_KEY = "infinite-buy:active-id";
-// 이전 단일 종목 버전에서 쓰던 키 (있으면 첫 종목으로 이전)
-const LEGACY_SETTINGS_KEY = "infinite-buy:settings";
-const LEGACY_LOG_KEY = "infinite-buy:log";
+import { ACTIVE_KEY, STOCKS_KEY, loadJSON, loadStocks } from "@/lib/stockStore";
+import { useLivePrices, type LiveQuoteState } from "@/lib/useLivePrices";
+import LivePriceSidebar from "@/components/LivePriceSidebar";
 
 const won = (n: number) => `${Math.round(n).toLocaleString("ko-KR")}원`;
 const pct = (n: number) => `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-function loadJSON<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 function loadInitialState(): { stocks: Stock[]; activeId: string } {
-  const savedStocks = loadJSON<Stock[] | null>(STOCKS_KEY, null);
-  if (savedStocks && savedStocks.length > 0) {
-    const savedActiveId = loadJSON<string | null>(ACTIVE_KEY, null);
-    const activeId =
-      savedActiveId && savedStocks.some((s) => s.id === savedActiveId)
-        ? savedActiveId
-        : savedStocks[0].id;
-    return { stocks: savedStocks, activeId };
-  }
-
-  const legacySettings = loadJSON<InfiniteBuySettings | null>(LEGACY_SETTINGS_KEY, null);
-  const legacyLog = loadJSON<TradeLogEntry[]>(LEGACY_LOG_KEY, []);
-  const stock = createStock("ACE 레버리지", legacySettings ?? DEFAULT_SETTINGS);
-  stock.log = legacyLog;
-  return { stocks: [stock], activeId: stock.id };
+  const stocks = loadStocks();
+  const savedActiveId = loadJSON<string | null>(ACTIVE_KEY, null);
+  const activeId =
+    savedActiveId && stocks.some((s) => s.id === savedActiveId)
+      ? savedActiveId
+      : stocks[0].id;
+  return { stocks, activeId };
 }
 
 // 모듈 스코프에서 한 번만 계산해 stocks/activeId 두 useState가 같은 초기값을 공유하게 한다.
@@ -83,12 +63,20 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
-function PhaseBadge({ phase, changePercent }: { phase: "rise" | "fall"; changePercent: number }) {
+function PhaseBadge({
+  phase,
+  changePercent,
+}: {
+  phase: "rise" | "fall";
+  changePercent: number;
+}) {
   const isRise = phase === "rise";
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums ${
-        isRise ? "bg-[var(--success)]/10 text-[var(--success)]" : "bg-[var(--critical)]/10 text-[var(--critical)]"
+        isRise
+          ? "bg-[var(--success)]/10 text-[var(--success)]"
+          : "bg-[var(--critical)]/10 text-[var(--critical)]"
       }`}
     >
       {isRise ? "▲" : "▼"} {pct(changePercent)}
@@ -107,10 +95,16 @@ function StatTile({
 }) {
   return (
     <div className="rounded-xl bg-[var(--surface-2)] px-4 py-3">
-      <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+        {label}
+      </div>
       <div
         className={`mt-1 text-lg font-semibold ${
-          tone === "success" ? "text-[var(--success)]" : tone === "critical" ? "text-[var(--critical)]" : ""
+          tone === "success"
+            ? "text-[var(--success)]"
+            : tone === "critical"
+              ? "text-[var(--critical)]"
+              : ""
         }`}
       >
         {value}
@@ -119,25 +113,25 @@ function StatTile({
   );
 }
 
-interface PriceQuote {
-  name: string;
-  price: number;
-  marketStatus: string;
-  updatedAt: string;
-}
-
 function TodayCalculator({
   stock,
+  liveState,
   onAdd,
+  onRefresh,
 }: {
   stock: Stock;
+  liveState?: LiveQuoteState;
   onAdd: (entry: TradeLogEntry) => void;
+  onRefresh: () => void;
 }) {
-  const [todayPrice, setTodayPrice] = useState<number>(stock.settings.basePrice);
-  const [isFetching, setIsFetching] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [quote, setQuote] = useState<PriceQuote | null>(null);
-  const suggestion = computeTodaySuggestion(todayPrice || stock.settings.basePrice, stock.settings);
+  const [todayPrice, setTodayPrice] = useState<number>(
+    stock.settings.basePrice,
+  );
+  const suggestion = computeTodaySuggestion(
+    todayPrice || stock.settings.basePrice,
+    stock.settings,
+  );
+  const quote = liveState?.quote;
 
   function addToLog() {
     const price = todayPrice || stock.settings.basePrice;
@@ -147,28 +141,6 @@ function TodayCalculator({
       price,
       qty: suggestion.buyQty,
     });
-  }
-
-  async function fetchLivePrice() {
-    if (!stock.ticker) return;
-    setIsFetching(true);
-    setFetchError(null);
-    try {
-      const res = await fetch(`/api/stock-price?code=${stock.ticker}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "시세 조회에 실패했습니다.");
-      setTodayPrice(data.price);
-      setQuote({
-        name: data.name,
-        price: data.price,
-        marketStatus: data.marketStatus,
-        updatedAt: data.updatedAt,
-      });
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : "시세 조회에 실패했습니다.");
-    } finally {
-      setIsFetching(false);
-    }
   }
 
   return (
@@ -187,26 +159,37 @@ function TodayCalculator({
             {stock.ticker && (
               <button
                 type="button"
-                onClick={fetchLivePrice}
-                disabled={isFetching}
-                className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)] disabled:opacity-40"
+                onClick={() => quote && setTodayPrice(quote.price)}
+                disabled={!quote}
+                className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {isFetching ? "불러오는 중…" : "실시간 시세 불러오기"}
+                {quote
+                  ? `실시간가 적용 (${won(quote.price)})`
+                  : liveState?.loading
+                    ? "불러오는 중…"
+                    : "실시간 시세 대기 중"}
               </button>
             )}
           </div>
         </label>
         <div className="flex flex-col gap-1.5 text-sm">
           <span className="text-[var(--text-muted)]">변동률</span>
-          <PhaseBadge phase={suggestion.phase} changePercent={suggestion.changePercent} />
+          <PhaseBadge
+            phase={suggestion.phase}
+            changePercent={suggestion.changePercent}
+          />
         </div>
         <div className="flex flex-col gap-1.5 text-sm">
           <span className="text-[var(--text-muted)]">주문 매수량</span>
-          <span className="font-semibold tabular-nums">{suggestion.buyQty.toLocaleString("ko-KR")}주</span>
+          <span className="font-semibold tabular-nums">
+            {suggestion.buyQty.toLocaleString("ko-KR")}주
+          </span>
         </div>
         <div className="flex flex-col gap-1.5 text-sm">
           <span className="text-[var(--text-muted)]">매입금액</span>
-          <span className="font-semibold tabular-nums">{won(suggestion.buyAmount)}</span>
+          <span className="font-semibold tabular-nums">
+            {won(suggestion.buyAmount)}
+          </span>
         </div>
         <button
           onClick={addToLog}
@@ -219,23 +202,36 @@ function TodayCalculator({
 
       {!stock.ticker && (
         <p className="mt-3 text-xs text-[var(--text-muted)]">
-          종목 탭 아래 &ldquo;종목 코드 등록&rdquo;에 네이버 금융 6자리 코드를 입력하면 실시간 시세를 바로 불러올 수 있어요.
+          종목 탭 아래 &ldquo;종목 코드 등록&rdquo;에 네이버 금융 6자리 코드를
+          입력하면 좌측 패널에서 실시간 시세가 자동으로 갱신돼요.
         </p>
       )}
-      {quote && (
+      {stock.ticker && quote && (
         <p className="mt-3 text-xs text-[var(--text-muted)]">
-          {quote.name} · {won(quote.price)} · {quote.marketStatus === "OPEN" ? "장중" : "종가"} 기준 (
-          {quote.updatedAt?.slice(11, 16)})
+          {quote.name} · {won(quote.price)} ·{" "}
+          {quote.marketStatus === "OPEN" ? "장중" : "종가"} 기준 (
+          {quote.updatedAt?.slice(11, 16)}){" "}
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="underline underline-offset-2 hover:text-[var(--foreground)]"
+          >
+            새로고침
+          </button>
         </p>
       )}
-      {fetchError && <p className="mt-3 text-xs text-[var(--critical)]">{fetchError}</p>}
+      {stock.ticker && liveState?.error && (
+        <p className="mt-3 text-xs text-[var(--critical)]">{liveState.error}</p>
+      )}
     </section>
   );
 }
 
 export default function InfiniteBuyCalculator() {
   const [stocks, setStocks] = useState<Stock[]>(() => getInitialState().stocks);
-  const [activeId, setActiveId] = useState<string>(() => getInitialState().activeId);
+  const [activeId, setActiveId] = useState<string>(
+    () => getInitialState().activeId,
+  );
   const [isAddingStock, setIsAddingStock] = useState(false);
   const [newStockName, setNewStockName] = useState("");
   const [newStockTicker, setNewStockTicker] = useState("");
@@ -261,7 +257,10 @@ export default function InfiniteBuyCalculator() {
 
   function updateSetting(key: keyof InfiniteBuySettings, value: number) {
     if (Number.isNaN(value)) return;
-    updateStock(activeStock.id, (s) => ({ ...s, settings: { ...s.settings, [key]: value } }));
+    updateStock(activeStock.id, (s) => ({
+      ...s,
+      settings: { ...s.settings, [key]: value },
+    }));
   }
 
   function resetSettings() {
@@ -273,7 +272,10 @@ export default function InfiniteBuyCalculator() {
   }
 
   function removeFromLog(id: string) {
-    updateStock(activeStock.id, (s) => ({ ...s, log: s.log.filter((e) => e.id !== id) }));
+    updateStock(activeStock.id, (s) => ({
+      ...s,
+      log: s.log.filter((e) => e.id !== id),
+    }));
   }
 
   function submitNewStock(e: React.SubmitEvent) {
@@ -281,7 +283,11 @@ export default function InfiniteBuyCalculator() {
     const name = newStockName.trim();
     if (!name) return;
     const ticker = newStockTicker.trim();
-    const stock = createStock(name, DEFAULT_SETTINGS, /^\d{6}$/.test(ticker) ? ticker : undefined);
+    const stock = createStock(
+      name,
+      DEFAULT_SETTINGS,
+      /^\d{6}$/.test(ticker) ? ticker : undefined,
+    );
     setStocks((prev) => [...prev, stock]);
     setActiveId(stock.id);
     setNewStockName("");
@@ -310,7 +316,8 @@ export default function InfiniteBuyCalculator() {
 
   function deleteActiveStock() {
     if (stocks.length <= 1) return;
-    if (!window.confirm(`"${activeStock.name}" 종목과 매수 기록을 삭제할까요?`)) return;
+    if (!window.confirm(`"${activeStock.name}" 종목과 매수 기록을 삭제할까요?`))
+      return;
     const next = stocks.filter((s) => s.id !== activeStock.id);
     setStocks(next);
     setActiveId(next[0].id);
@@ -318,256 +325,336 @@ export default function InfiniteBuyCalculator() {
 
   const schedule: ScheduleRow[] = computeSchedule(activeStock.settings);
   const summary = summarizeTradeLog(activeStock.log);
+  const tickers = stocks.map((s) => s.ticker).filter((t): t is string => !!t);
+  const { quotes, refresh } = useLivePrices(tickers);
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-12">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">레버리지 무한매수 계산기</h1>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          매일 무한매수법 · 기준단가 대비 하락 시 매수량 확대, {activeStock.settings.riseLimitPercent}% 상승 시 매도
-        </p>
-      </header>
-
-      {/* 종목 탭 */}
-      <div className="flex flex-wrap items-center gap-2">
-        {stocks.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => {
-              setActiveId(s.id);
-              setIsRenaming(false);
-              setIsEditingTicker(false);
-              setTickerError(null);
-            }}
-            className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
-              s.id === activeId
-                ? "bg-[var(--accent-hover)] text-white"
-                : "bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--foreground)]"
-            }`}
+    <div className="flex w-full">
+      <LivePriceSidebar
+        stocks={stocks}
+        activeId={activeStock.id}
+        quotes={quotes}
+        onSelect={setActiveId}
+        onRefresh={refresh}
+      />
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-12">
+        <header className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              레버리지 무한매수 계산기
+            </h1>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              매일 무한매수법 · 기준단가 대비 하락 시 매수량 확대,{" "}
+              {activeStock.settings.riseLimitPercent}% 상승 시 매도
+            </p>
+          </div>
+          <Link
+            href="/dashboard"
+            className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
           >
-            {s.name}
-          </button>
-        ))}
+            대시보드 보기 →
+          </Link>
+        </header>
 
-        {isAddingStock ? (
-          <form onSubmit={submitNewStock} className="flex items-center gap-1.5">
-            <input
-              autoFocus
-              value={newStockName}
-              onChange={(e) => setNewStockName(e.target.value)}
-              placeholder="종목명 입력"
-              className="w-32 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
-            />
-            <input
-              value={newStockTicker}
-              onChange={(e) => setNewStockTicker(e.target.value)}
-              placeholder="종목코드 (선택)"
-              className="w-28 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
-            />
-            <button type="submit" className="text-xs font-medium text-[var(--accent-text)]">
-              추가
-            </button>
+        {/* 종목 탭 */}
+        <div className="flex flex-wrap items-center gap-2">
+          {stocks.map((s) => (
             <button
-              type="button"
-              onClick={() => setIsAddingStock(false)}
-              className="text-xs text-[var(--text-muted)] hover:text-[var(--foreground)]"
-            >
-              취소
-            </button>
-          </form>
-        ) : (
-          <button
-            onClick={() => setIsAddingStock(true)}
-            className="rounded-full border border-dashed border-[var(--hairline)] px-3.5 py-1.5 text-sm text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
-          >
-            + 종목 추가
-          </button>
-        )}
-      </div>
-
-      {/* 현재 종목 관리 */}
-      <div className="-mt-3 flex items-center gap-3 text-xs text-[var(--text-muted)]">
-        {isRenaming ? (
-          <form onSubmit={submitRename} className="flex items-center gap-1.5">
-            <input
-              autoFocus
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              className="rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
-            />
-            <button type="submit" className="font-medium text-[var(--accent-text)]">
-              저장
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsRenaming(false)}
-              className="hover:text-[var(--foreground)]"
-            >
-              취소
-            </button>
-          </form>
-        ) : (
-          <button
-            onClick={() => {
-              setRenameValue(activeStock.name);
-              setIsRenaming(true);
-            }}
-            className="underline underline-offset-2 hover:text-[var(--foreground)]"
-          >
-            종목명 변경
-          </button>
-        )}
-
-        {isEditingTicker ? (
-          <form onSubmit={submitTicker} className="flex items-center gap-1.5">
-            <input
-              autoFocus
-              value={tickerValue}
-              onChange={(e) => setTickerValue(e.target.value)}
-              placeholder="예: 069500"
-              className="w-24 rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
-            />
-            <button type="submit" className="font-medium text-[var(--accent-text)]">
-              저장
-            </button>
-            <button
-              type="button"
+              key={s.id}
               onClick={() => {
+                setActiveId(s.id);
+                setIsRenaming(false);
                 setIsEditingTicker(false);
                 setTickerError(null);
               }}
-              className="hover:text-[var(--foreground)]"
+              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+                s.id === activeId
+                  ? "bg-[var(--accent-hover)] text-white"
+                  : "bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--foreground)]"
+              }`}
             >
-              취소
+              {s.name}
             </button>
-          </form>
-        ) : (
-          <button
-            onClick={() => {
-              setTickerValue(activeStock.ticker ?? "");
-              setIsEditingTicker(true);
-            }}
-            className="underline underline-offset-2 hover:text-[var(--foreground)]"
-          >
-            {activeStock.ticker ? `종목 코드: ${activeStock.ticker}` : "종목 코드 등록"}
-          </button>
-        )}
-        {tickerError && <span className="text-[var(--critical)]">{tickerError}</span>}
-
-        {stocks.length > 1 && (
-          <button onClick={deleteActiveStock} className="underline underline-offset-2 hover:text-[var(--critical)]">
-            이 종목 삭제
-          </button>
-        )}
-      </div>
-
-      {/* 설정 */}
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
-        <div className="mb-5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="h-4 w-1 rounded-full bg-[var(--accent)]" />
-            <h2 className="text-base font-semibold tracking-tight">설정</h2>
-          </div>
-          <button
-            onClick={resetSettings}
-            className="text-xs text-[var(--text-muted)] underline underline-offset-2 hover:text-[var(--foreground)]"
-          >
-            기본값으로 초기화
-          </button>
-        </div>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {SETTINGS_FIELDS.map((field) => (
-            <label key={field.key} className="flex flex-col gap-1.5 text-sm">
-              <span className="text-[var(--text-muted)]">{field.label}</span>
-              <input
-                type="number"
-                value={activeStock.settings[field.key]}
-                onChange={(e) => updateSetting(field.key, Number(e.target.value))}
-                className={inputClass}
-              />
-            </label>
           ))}
+
+          {isAddingStock ? (
+            <form
+              onSubmit={submitNewStock}
+              className="flex items-center gap-1.5"
+            >
+              <input
+                autoFocus
+                value={newStockName}
+                onChange={(e) => setNewStockName(e.target.value)}
+                placeholder="종목명 입력"
+                className="w-32 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+              />
+              <input
+                value={newStockTicker}
+                onChange={(e) => setNewStockTicker(e.target.value)}
+                placeholder="종목코드 (선택)"
+                className="w-28 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+              />
+              <button
+                type="submit"
+                className="text-xs font-medium text-[var(--accent-text)]"
+              >
+                추가
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAddingStock(false)}
+                className="text-xs text-[var(--text-muted)] hover:text-[var(--foreground)]"
+              >
+                취소
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => setIsAddingStock(true)}
+              className="rounded-full border border-dashed border-[var(--hairline)] px-3.5 py-1.5 text-sm text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
+            >
+              + 종목 추가
+            </button>
+          )}
         </div>
-      </section>
 
-      {/* 오늘 매입 계산기 */}
-      <TodayCalculator key={activeStock.id} stock={activeStock} onAdd={addToLog} />
+        {/* 현재 종목 관리 */}
+        <div className="-mt-3 flex items-center gap-3 text-xs text-[var(--text-muted)]">
+          {isRenaming ? (
+            <form onSubmit={submitRename} className="flex items-center gap-1.5">
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                className="rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
+              />
+              <button
+                type="submit"
+                className="font-medium text-[var(--accent-text)]"
+              >
+                저장
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsRenaming(false)}
+                className="hover:text-[var(--foreground)]"
+              >
+                취소
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => {
+                setRenameValue(activeStock.name);
+                setIsRenaming(true);
+              }}
+              className="underline underline-offset-2 hover:text-[var(--foreground)]"
+            >
+              종목명 변경
+            </button>
+          )}
 
-      {/* 매수 기록 */}
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
-        <SectionHeading>매수 기록</SectionHeading>
-        {activeStock.log.length === 0 ? (
-          <p className="text-sm text-[var(--text-muted)]">아직 기록이 없습니다.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[480px] text-sm">
-              <thead>
+          {isEditingTicker ? (
+            <form onSubmit={submitTicker} className="flex items-center gap-1.5">
+              <input
+                autoFocus
+                value={tickerValue}
+                onChange={(e) => setTickerValue(e.target.value)}
+                placeholder="예: 069500"
+                className="w-24 rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
+              />
+              <button
+                type="submit"
+                className="font-medium text-[var(--accent-text)]"
+              >
+                저장
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingTicker(false);
+                  setTickerError(null);
+                }}
+                className="hover:text-[var(--foreground)]"
+              >
+                취소
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => {
+                setTickerValue(activeStock.ticker ?? "");
+                setIsEditingTicker(true);
+              }}
+              className="underline underline-offset-2 hover:text-[var(--foreground)]"
+            >
+              {activeStock.ticker
+                ? `종목 코드: ${activeStock.ticker}`
+                : "종목 코드 등록"}
+            </button>
+          )}
+          {tickerError && (
+            <span className="text-[var(--critical)]">{tickerError}</span>
+          )}
+
+          {stocks.length > 1 && (
+            <button
+              onClick={deleteActiveStock}
+              className="underline underline-offset-2 hover:text-[var(--critical)]"
+            >
+              이 종목 삭제
+            </button>
+          )}
+        </div>
+
+        {/* 설정 */}
+        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
+          <div className="mb-5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="h-4 w-1 rounded-full bg-[var(--accent)]" />
+              <h2 className="text-base font-semibold tracking-tight">설정</h2>
+            </div>
+            <button
+              onClick={resetSettings}
+              className="text-xs text-[var(--text-muted)] underline underline-offset-2 hover:text-[var(--foreground)]"
+            >
+              기본값으로 초기화
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {SETTINGS_FIELDS.map((field) => (
+              <label key={field.key} className="flex flex-col gap-1.5 text-sm">
+                <span className="text-[var(--text-muted)]">{field.label}</span>
+                <input
+                  type="number"
+                  value={activeStock.settings[field.key]}
+                  onChange={(e) =>
+                    updateSetting(field.key, Number(e.target.value))
+                  }
+                  className={inputClass}
+                />
+              </label>
+            ))}
+          </div>
+        </section>
+
+        {/* 오늘 매입 계산기 */}
+        <TodayCalculator
+          key={activeStock.id}
+          stock={activeStock}
+          liveState={
+            activeStock.ticker ? quotes[activeStock.ticker] : undefined
+          }
+          onAdd={addToLog}
+          onRefresh={refresh}
+        />
+
+        {/* 매수 기록 */}
+        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
+          <SectionHeading>매수 기록</SectionHeading>
+          {activeStock.log.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">
+              아직 기록이 없습니다.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[480px] text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--hairline)] text-left text-[var(--text-muted)]">
+                    <th className="py-1.5 font-normal">날짜</th>
+                    <th className="py-1.5 text-right font-normal">매입단가</th>
+                    <th className="py-1.5 text-right font-normal">매수량</th>
+                    <th className="py-1.5 text-right font-normal">매입금액</th>
+                    <th className="py-1.5 font-normal" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeStock.log.map((entry) => (
+                    <tr
+                      key={entry.id}
+                      className="border-b border-[var(--hairline)]/60"
+                    >
+                      <td className="py-1.5">{entry.date}</td>
+                      <td className="py-1.5 text-right tabular-nums">
+                        {won(entry.price)}
+                      </td>
+                      <td className="py-1.5 text-right tabular-nums">
+                        {entry.qty.toLocaleString("ko-KR")}주
+                      </td>
+                      <td className="py-1.5 text-right tabular-nums">
+                        {won(entry.price * entry.qty)}
+                      </td>
+                      <td className="py-1.5 text-right">
+                        <button
+                          onClick={() => removeFromLog(entry.id)}
+                          className="text-xs text-[var(--text-muted)] hover:text-[var(--critical)]"
+                        >
+                          삭제
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <StatTile
+                  label="총 매수량"
+                  value={`${summary.totalQty.toLocaleString("ko-KR")}주`}
+                />
+                <StatTile
+                  label="총 매입금액"
+                  value={won(summary.totalAmount)}
+                />
+                <StatTile label="평단가" value={won(summary.avgPrice)} />
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* 시뮬레이션 표 */}
+        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
+          <SectionHeading>회차별 매수 스케줄 시뮬레이션</SectionHeading>
+          <div className="max-h-[480px] overflow-auto">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead className="sticky top-0 bg-[var(--surface)]">
                 <tr className="border-b border-[var(--hairline)] text-left text-[var(--text-muted)]">
-                  <th className="py-1.5 font-normal">날짜</th>
+                  <th className="py-1.5 font-normal">회차</th>
+                  <th className="py-1.5 font-normal">변동률</th>
                   <th className="py-1.5 text-right font-normal">매입단가</th>
-                  <th className="py-1.5 text-right font-normal">매수량</th>
+                  <th className="py-1.5 text-right font-normal">매입수량</th>
                   <th className="py-1.5 text-right font-normal">매입금액</th>
-                  <th className="py-1.5 font-normal" />
                 </tr>
               </thead>
               <tbody>
-                {activeStock.log.map((entry) => (
-                  <tr key={entry.id} className="border-b border-[var(--hairline)]/60">
-                    <td className="py-1.5">{entry.date}</td>
-                    <td className="py-1.5 text-right tabular-nums">{won(entry.price)}</td>
-                    <td className="py-1.5 text-right tabular-nums">{entry.qty.toLocaleString("ko-KR")}주</td>
-                    <td className="py-1.5 text-right tabular-nums">{won(entry.price * entry.qty)}</td>
-                    <td className="py-1.5 text-right">
-                      <button
-                        onClick={() => removeFromLog(entry.id)}
-                        className="text-xs text-[var(--text-muted)] hover:text-[var(--critical)]"
-                      >
-                        삭제
-                      </button>
+                {schedule.map((row) => (
+                  <tr
+                    key={row.round}
+                    className="border-b border-[var(--hairline)]/60"
+                  >
+                    <td className="py-1.5 tabular-nums">{row.round}</td>
+                    <td className="py-1.5">
+                      <PhaseBadge
+                        phase={row.phase}
+                        changePercent={row.changePercent}
+                      />
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums">
+                      {won(row.buyPrice)}
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums">
+                      {row.buyQty.toLocaleString("ko-KR")}주
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums">
+                      {won(row.buyAmount)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatTile label="총 매수량" value={`${summary.totalQty.toLocaleString("ko-KR")}주`} />
-              <StatTile label="총 매입금액" value={won(summary.totalAmount)} />
-              <StatTile label="평단가" value={won(summary.avgPrice)} />
-            </div>
           </div>
-        )}
-      </section>
-
-      {/* 시뮬레이션 표 */}
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
-        <SectionHeading>회차별 매수 스케줄 시뮬레이션</SectionHeading>
-        <div className="max-h-[480px] overflow-auto">
-          <table className="w-full min-w-[520px] text-sm">
-            <thead className="sticky top-0 bg-[var(--surface)]">
-              <tr className="border-b border-[var(--hairline)] text-left text-[var(--text-muted)]">
-                <th className="py-1.5 font-normal">회차</th>
-                <th className="py-1.5 font-normal">변동률</th>
-                <th className="py-1.5 text-right font-normal">매입단가</th>
-                <th className="py-1.5 text-right font-normal">매입수량</th>
-                <th className="py-1.5 text-right font-normal">매입금액</th>
-              </tr>
-            </thead>
-            <tbody>
-              {schedule.map((row) => (
-                <tr key={row.round} className="border-b border-[var(--hairline)]/60">
-                  <td className="py-1.5 tabular-nums">{row.round}</td>
-                  <td className="py-1.5">
-                    <PhaseBadge phase={row.phase} changePercent={row.changePercent} />
-                  </td>
-                  <td className="py-1.5 text-right tabular-nums">{won(row.buyPrice)}</td>
-                  <td className="py-1.5 text-right tabular-nums">{row.buyQty.toLocaleString("ko-KR")}주</td>
-                  <td className="py-1.5 text-right tabular-nums">{won(row.buyAmount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
