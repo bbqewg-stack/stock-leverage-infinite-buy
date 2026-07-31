@@ -18,13 +18,13 @@ function StatCard({
   label: string;
   value: string;
   sub?: string;
-  tone?: "success" | "critical";
+  tone?: "rise" | "fall";
 }) {
   const toneClass =
-    tone === "success"
-      ? "text-[var(--success)]"
-      : tone === "critical"
-        ? "text-[var(--critical)]"
+    tone === "rise"
+      ? "text-[var(--rise)]"
+      : tone === "fall"
+        ? "text-[var(--fall)]"
         : "";
   return (
     <div className="rounded-xl bg-[var(--surface-2)] px-4 py-3">
@@ -122,7 +122,7 @@ export default function Dashboard() {
           label="평가손익"
           value={`${totals.totalProfit >= 0 ? "+" : ""}${won(totals.totalProfit)}`}
           sub={pct(totals.totalProfitPercent)}
-          tone={totals.totalProfit >= 0 ? "success" : "critical"}
+          tone={totals.totalProfit >= 0 ? "rise" : "fall"}
         />
         <StatCard
           label="보유 종목"
@@ -206,8 +206,8 @@ export default function Dashboard() {
                       <td
                         className={`py-1.5 text-right tabular-nums font-medium ${
                           profit >= 0
-                            ? "text-[var(--success)]"
-                            : "text-[var(--critical)]"
+                            ? "text-[var(--rise)]"
+                            : "text-[var(--fall)]"
                         }`}
                       >
                         {profit >= 0 ? "+" : ""}

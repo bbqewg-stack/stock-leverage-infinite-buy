@@ -16,6 +16,9 @@
   --accent-text: #184f95;
   --success: #006300;
   --critical: #d03b3b;
+  /* 국내 증시 표기 관례: 상승 = 빨강, 하락 = 파랑 (해외 success/critical과 반대) */
+  --rise: #d03b3b;
+  --fall: #1e6fd9;
 }
 
 @theme inline {
@@ -42,6 +45,8 @@
     --accent-text: #86b6ef;
     --success: #0ca30c;
     --critical: #e66767;
+    --rise: #e66767;
+    --fall: #5b9bf0;
   }
 }
 

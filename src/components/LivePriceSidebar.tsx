@@ -60,8 +60,8 @@ export default function LivePriceSidebar({
                       <span
                         className={`shrink-0 text-xs font-medium tabular-nums ${
                           q.isRising
-                            ? "text-[var(--success)]"
-                            : "text-[var(--critical)]"
+                            ? "text-[var(--rise)]"
+                            : "text-[var(--fall)]"
                         }`}
                       >
                         {q.isRising ? "▲" : "▼"}{" "}
@@ -74,8 +74,8 @@ export default function LivePriceSidebar({
                     </div>
                     {nameMismatch && (
                       <div className="mt-1 text-[10px] font-medium text-[var(--critical)]">
-                        ⚠ 코드 {s.ticker}의 실제 종목명은 &ldquo;{q.name}&rdquo;이에요. 코드가 맞는지
-                        확인해 주세요.
+                        ⚠ 코드 {s.ticker}의 실제 종목명은 &ldquo;{q.name}
+                        &rdquo;이에요. 코드가 맞는지 확인해 주세요.
                       </div>
                     )}
                   </>

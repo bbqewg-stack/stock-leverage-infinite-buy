@@ -82,8 +82,8 @@ function PhaseBadge({
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums ${
         isRise
-          ? "bg-[var(--success)]/10 text-[var(--success)]"
-          : "bg-[var(--critical)]/10 text-[var(--critical)]"
+          ? "bg-[var(--rise)]/10 text-[var(--rise)]"
+          : "bg-[var(--fall)]/10 text-[var(--fall)]"
       }`}
     >
       {isRise ? "▲" : "▼"} {pct(changePercent)}
