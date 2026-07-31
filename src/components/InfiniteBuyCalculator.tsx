@@ -15,9 +15,11 @@ import {
 } from "@/lib/infiniteBuy";
 import {
   ACTIVE_KEY,
+  DEFAULT_SETTINGS_KEY,
   STOCKS_KEY,
   fetchRemoteState,
   isPendingSync,
+  loadDefaultSettings,
   loadJSON,
   loadStocks,
   markPendingSync,
@@ -411,6 +413,16 @@ export default function InfiniteBuyCalculator() {
   const [tickerError, setTickerError] = useState<string | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
+  const [defaultSettings, setDefaultSettings] = useState<InfiniteBuySettings>(
+    () => loadDefaultSettings(),
+  );
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      DEFAULT_SETTINGS_KEY,
+      JSON.stringify(defaultSettings),
+    );
+  }, [defaultSettings]);
 
   useEffect(() => {
     window.localStorage.setItem(STOCKS_KEY, JSON.stringify(stocks));
@@ -511,7 +523,7 @@ export default function InfiniteBuyCalculator() {
   }
 
   function resetSettings() {
-    updateStock(activeStock.id, (s) => ({ ...s, settings: DEFAULT_SETTINGS }));
+    updateStock(activeStock.id, (s) => ({ ...s, settings: defaultSettings }));
   }
 
   function addToLog(entry: TradeLogEntry) {
@@ -532,7 +544,7 @@ export default function InfiniteBuyCalculator() {
     const ticker = newStockTicker.trim();
     const stock = createStock(
       name,
-      DEFAULT_SETTINGS,
+      defaultSettings,
       /^\d{6}$/.test(ticker) ? ticker : undefined,
     );
     setStocks((prev) => [...prev, stock]);
@@ -1051,6 +1063,50 @@ export default function InfiniteBuyCalculator() {
                       onChange={(e) =>
                         updateSetting(field.key, Number(e.target.value))
                       }
+                      className={inputClass}
+                    />
+                  </label>
+                ))}
+              </div>
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              id="default-settings"
+              title="기본값 설정"
+              defaultOpen={false}
+              actions={
+                <button
+                  onClick={() => setDefaultSettings(DEFAULT_SETTINGS)}
+                  className="text-xs text-[var(--text-muted)] underline underline-offset-2 hover:text-[var(--foreground)]"
+                >
+                  출고값으로 초기화
+                </button>
+              }
+            >
+              <p className="mb-4 text-xs text-[var(--text-muted)]">
+                새 종목을 추가하거나 종목의 &ldquo;기본값으로 초기화&rdquo;를
+                누를 때 사용되는 값이에요.
+              </p>
+              <div className="flex flex-col gap-4">
+                {SETTINGS_FIELDS.map((field) => (
+                  <label
+                    key={field.key}
+                    className="flex flex-col gap-1.5 text-sm"
+                  >
+                    <span className="text-[var(--text-muted)]">
+                      {field.label}
+                    </span>
+                    <input
+                      type="number"
+                      value={defaultSettings[field.key]}
+                      onChange={(e) => {
+                        const value = Number(e.target.value);
+                        if (Number.isNaN(value)) return;
+                        setDefaultSettings((prev) => ({
+                          ...prev,
+                          [field.key]: value,
+                        }));
+                      }}
                       className={inputClass}
                     />
                   </label>

@@ -21,7 +21,7 @@ export const DEFAULT_SETTINGS: InfiniteBuySettings = {
   riseStepPercent: 1,
   fallStepPercent: 2,
   fallScale: 60,
-  totalRounds: 41,
+  totalRounds: 50,
 };
 
 export interface ScheduleRow {
@@ -63,7 +63,10 @@ export function computeSchedule(settings: InfiniteBuySettings): ScheduleRow[] {
       phase === "rise"
         ? (riseLimitPercent - changePercent) / riseLimitPercent
         : (fallScale - changePercent) / fallScale;
-    const buyQty = Math.max(0, roundHalfUp((perOrderAmount / buyPrice) * weight));
+    const buyQty = Math.max(
+      0,
+      roundHalfUp((perOrderAmount / buyPrice) * weight),
+    );
     const buyAmount = buyPrice * buyQty;
 
     rows.push({ round, changePercent, phase, buyPrice, buyQty, buyAmount });
@@ -81,7 +84,7 @@ export interface TodaySuggestion {
 
 export function computeTodaySuggestion(
   todayPrice: number,
-  settings: InfiniteBuySettings
+  settings: InfiniteBuySettings,
 ): TodaySuggestion {
   const { basePrice, perOrderAmount, riseLimitPercent, fallScale } = settings;
   const changePercent = (todayPrice / basePrice - 1) * 100;
@@ -90,7 +93,10 @@ export function computeTodaySuggestion(
     phase === "rise"
       ? (riseLimitPercent - changePercent) / riseLimitPercent
       : (fallScale - changePercent) / fallScale;
-  const buyQty = Math.max(0, roundHalfUp((perOrderAmount / todayPrice) * weight));
+  const buyQty = Math.max(
+    0,
+    roundHalfUp((perOrderAmount / todayPrice) * weight),
+  );
   const buyAmount = todayPrice * buyQty;
 
   return { changePercent, phase, buyQty, buyAmount };
@@ -128,7 +134,7 @@ export interface Stock {
 export function createStock(
   name: string,
   settings: InfiniteBuySettings = DEFAULT_SETTINGS,
-  ticker?: string
+  ticker?: string,
 ): Stock {
   return {
     id: crypto.randomUUID(),

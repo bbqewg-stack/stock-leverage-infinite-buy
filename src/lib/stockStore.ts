@@ -11,6 +11,10 @@ import {
 
 export const STOCKS_KEY = "infinite-buy:stocks";
 export const ACTIVE_KEY = "infinite-buy:active-id";
+// 새 종목을 추가하거나 "기본값으로 초기화"를 누를 때 쓰는, 사용자가 직접
+// 커스터마이즈할 수 있는 기본값. 브라우저별 개인 설정이라 DB 동기화는 하지
+// 않고 localStorage에만 저장한다.
+export const DEFAULT_SETTINGS_KEY = "infinite-buy:default-settings";
 // 로컬 변경사항이 서버로 확실히 전송되기 전까지 "true"로 표시한다.
 // 브라우저가 갑자기 닫히거나(전원 종료 등) 저장 요청이 실패해도, 다음에 다시
 // 열었을 때 이 값이 true면 서버 값으로 로컬을 덮어쓰지 않고 반대로 로컬 값을
@@ -42,6 +46,10 @@ export function loadStocks(): Stock[] {
   const stock = createStock("ACE 레버리지", legacySettings ?? DEFAULT_SETTINGS);
   stock.log = legacyLog;
   return [stock];
+}
+
+export function loadDefaultSettings(): InfiniteBuySettings {
+  return loadJSON<InfiniteBuySettings>(DEFAULT_SETTINGS_KEY, DEFAULT_SETTINGS);
 }
 
 // 서버(DB)에 저장된 상태. 브라우저 저장소가 초기화되어도 여기서 복구한다.
