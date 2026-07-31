@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   DEFAULT_SETTINGS,
   InfiniteBuySettings,
@@ -21,6 +21,8 @@ import {
   loadStocks,
   saveRemoteState,
 } from "@/lib/stockStore";
+import { downloadBackup, parseBackupFile } from "@/lib/backup";
+import { exportStockToExcel } from "@/lib/exportExcel";
 import { useLivePrices, type LiveQuoteState } from "@/lib/useLivePrices";
 import LivePriceSidebar from "@/components/LivePriceSidebar";
 
@@ -61,12 +63,59 @@ const SETTINGS_FIELDS: {
 const inputClass =
   "w-full rounded-lg border border-[var(--hairline)] bg-transparent px-3 py-2 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20";
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
+const SECTION_OPEN_KEY_PREFIX = "infinite-buy:section-open:";
+
+function CollapsibleSection({
+  id,
+  title,
+  actions,
+  children,
+}: {
+  id: string;
+  title: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const saved = window.localStorage.getItem(
+      `${SECTION_OPEN_KEY_PREFIX}${id}`,
+    );
+    return saved === null ? true : saved === "true";
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      `${SECTION_OPEN_KEY_PREFIX}${id}`,
+      String(open),
+    );
+  }, [id, open]);
+
   return (
-    <div className="mb-5 flex items-center gap-2">
-      <span className="h-4 w-1 rounded-full bg-[var(--accent)]" />
-      <h2 className="text-base font-semibold tracking-tight">{children}</h2>
-    </div>
+    <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
+      <div
+        className={`flex items-center justify-between gap-3 ${open ? "mb-5" : ""}`}
+      >
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-2 text-left"
+          aria-expanded={open}
+        >
+          <span className="h-4 w-1 rounded-full bg-[var(--accent)]" />
+          <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+          <span
+            className={`text-xs text-[var(--text-muted)] transition-transform ${open ? "" : "-rotate-90"}`}
+          >
+            ▾
+          </span>
+        </button>
+        {open && actions && (
+          <div className="flex items-center gap-3">{actions}</div>
+        )}
+      </div>
+      {open && children}
+    </section>
   );
 }
 
@@ -151,8 +200,7 @@ function TodayCalculator({
   }
 
   return (
-    <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
-      <SectionHeading>오늘 매입 계산기</SectionHeading>
+    <CollapsibleSection id="today-calculator" title="오늘 매입 계산기">
       <div className="flex flex-wrap items-end gap-5">
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="text-[var(--text-muted)]">오늘 매입단가</span>
@@ -230,7 +278,7 @@ function TodayCalculator({
       {stock.ticker && liveState?.error && (
         <p className="mt-3 text-xs text-[var(--critical)]">{liveState.error}</p>
       )}
-    </section>
+    </CollapsibleSection>
   );
 }
 
@@ -247,6 +295,8 @@ export default function InfiniteBuyCalculator() {
   const [isEditingTicker, setIsEditingTicker] = useState(false);
   const [tickerValue, setTickerValue] = useState("");
   const [tickerError, setTickerError] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const backupInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     window.localStorage.setItem(STOCKS_KEY, JSON.stringify(stocks));
@@ -358,6 +408,37 @@ export default function InfiniteBuyCalculator() {
     setActiveId(next[0].id);
   }
 
+  function handleExportExcel() {
+    exportStockToExcel(activeStock, computeSchedule(activeStock.settings));
+  }
+
+  function handleBackupDownload() {
+    downloadBackup(stocks, activeId);
+  }
+
+  async function handleBackupFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const restored = await parseBackupFile(file);
+      if (
+        !window.confirm(
+          `백업 파일에 종목 ${restored.stocks.length}개가 있습니다. 현재 데이터를 덮어쓰고 복원할까요?`,
+        )
+      ) {
+        return;
+      }
+      setStocks(restored.stocks);
+      setActiveId(restored.activeId);
+      setBackupError(null);
+    } catch (err) {
+      setBackupError(
+        err instanceof Error ? err.message : "백업 복원에 실패했습니다.",
+      );
+    }
+  }
+
   const schedule: ScheduleRow[] = computeSchedule(activeStock.settings);
   const summary = summarizeTradeLog(activeStock.log);
   const tickers = stocks.map((s) => s.ticker).filter((t): t is string => !!t);
@@ -383,13 +464,46 @@ export default function InfiniteBuyCalculator() {
               {activeStock.settings.riseLimitPercent}% 상승 시 매도
             </p>
           </div>
-          <Link
-            href="/dashboard"
-            className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
-          >
-            대시보드 보기 →
-          </Link>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
+            >
+              엑셀로 내보내기
+            </button>
+            <button
+              type="button"
+              onClick={handleBackupDownload}
+              className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
+            >
+              백업 다운로드
+            </button>
+            <button
+              type="button"
+              onClick={() => backupInputRef.current?.click()}
+              className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
+            >
+              백업 불러오기
+            </button>
+            <input
+              ref={backupInputRef}
+              type="file"
+              accept="application/json"
+              onChange={handleBackupFile}
+              className="hidden"
+            />
+            <Link
+              href="/dashboard"
+              className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
+            >
+              대시보드 보기 →
+            </Link>
+          </div>
         </header>
+        {backupError && (
+          <p className="-mt-4 text-xs text-[var(--critical)]">{backupError}</p>
+        )}
 
         {/* 종목 탭 */}
         <div className="flex flex-wrap items-center gap-2">
@@ -544,19 +658,18 @@ export default function InfiniteBuyCalculator() {
         </div>
 
         {/* 설정 */}
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
-          <div className="mb-5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="h-4 w-1 rounded-full bg-[var(--accent)]" />
-              <h2 className="text-base font-semibold tracking-tight">설정</h2>
-            </div>
+        <CollapsibleSection
+          id="settings"
+          title="설정"
+          actions={
             <button
               onClick={resetSettings}
               className="text-xs text-[var(--text-muted)] underline underline-offset-2 hover:text-[var(--foreground)]"
             >
               기본값으로 초기화
             </button>
-          </div>
+          }
+        >
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {SETTINGS_FIELDS.map((field) => (
               <label key={field.key} className="flex flex-col gap-1.5 text-sm">
@@ -572,7 +685,7 @@ export default function InfiniteBuyCalculator() {
               </label>
             ))}
           </div>
-        </section>
+        </CollapsibleSection>
 
         {/* 오늘 매입 계산기 */}
         <TodayCalculator
@@ -586,8 +699,7 @@ export default function InfiniteBuyCalculator() {
         />
 
         {/* 매수 기록 */}
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
-          <SectionHeading>매수 기록</SectionHeading>
+        <CollapsibleSection id="trade-log" title="매수 기록">
           {activeStock.log.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">
               아직 기록이 없습니다.
@@ -645,11 +757,10 @@ export default function InfiniteBuyCalculator() {
               </div>
             </div>
           )}
-        </section>
+        </CollapsibleSection>
 
         {/* 시뮬레이션 표 */}
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
-          <SectionHeading>회차별 매수 스케줄 시뮬레이션</SectionHeading>
+        <CollapsibleSection id="schedule" title="회차별 매수 스케줄 시뮬레이션">
           <div className="max-h-[480px] overflow-auto">
             <table className="w-full min-w-[520px] text-sm">
               <thead className="sticky top-0 bg-[var(--surface)]">
@@ -688,7 +799,7 @@ export default function InfiniteBuyCalculator() {
               </tbody>
             </table>
           </div>
-        </section>
+        </CollapsibleSection>
       </div>
     </div>
   );
