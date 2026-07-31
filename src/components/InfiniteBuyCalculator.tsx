@@ -140,32 +140,44 @@ function PhaseBadge({
   );
 }
 
+function toneTextClass(tone?: "rise" | "fall") {
+  return tone === "rise"
+    ? "text-[var(--rise)]"
+    : tone === "fall"
+      ? "text-[var(--fall)]"
+      : "";
+}
+
 function StatTile({
   label,
   value,
   sub,
   tone,
+  subTone,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "rise" | "fall";
+  subTone?: "rise" | "fall";
 }) {
-  const toneClass =
-    tone === "rise"
-      ? "text-[var(--rise)]"
-      : tone === "fall"
-        ? "text-[var(--fall)]"
-        : "";
   return (
     <div className="rounded-xl bg-[var(--surface-2)] px-4 py-3">
       <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
         {label}
       </div>
-      <div className={`mt-1 text-lg font-semibold ${toneClass}`}>{value}</div>
+      <div className={`mt-1 text-lg font-semibold ${toneTextClass(tone)}`}>
+        {value}
+      </div>
       {sub && (
         <div
-          className={`mt-0.5 text-xs ${tone ? toneClass : "text-[var(--text-muted)]"}`}
+          className={`mt-0.5 text-xs ${
+            subTone
+              ? toneTextClass(subTone)
+              : tone
+                ? toneTextClass(tone)
+                : "text-[var(--text-muted)]"
+          }`}
         >
           {sub}
         </div>
@@ -478,6 +490,7 @@ export default function InfiniteBuyCalculator() {
   const profit = marketValue - summary.totalAmount;
   const profitPercent =
     summary.totalAmount > 0 ? (profit / summary.totalAmount) * 100 : 0;
+  const priceGap = currentPrice - summary.avgPrice;
 
   return (
     <div className="flex w-full">
@@ -700,13 +713,44 @@ export default function InfiniteBuyCalculator() {
               {activeStock.name} 요약
             </h2>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <StatTile
               label="총 매수량"
               value={`${summary.totalQty.toLocaleString("ko-KR")}주`}
             />
             <StatTile label="총 매입금액" value={won(summary.totalAmount)} />
-            <StatTile label="평단가" value={won(summary.avgPrice)} />
+            <StatTile
+              label="평단가"
+              value={won(summary.avgPrice)}
+              sub={
+                summary.totalQty > 0 && activeQuote
+                  ? `현재가-평단가 ${priceGap >= 0 ? "+" : ""}${won(priceGap)}`
+                  : undefined
+              }
+              subTone={
+                summary.totalQty > 0 && activeQuote
+                  ? priceGap >= 0
+                    ? "rise"
+                    : "fall"
+                  : undefined
+              }
+            />
+            <StatTile
+              label="현재가"
+              value={activeQuote ? won(activeQuote.price) : "-"}
+              sub={
+                activeQuote
+                  ? `${activeQuote.isRising ? "▲" : "▼"} ${Math.abs(activeQuote.changeRatio).toFixed(2)}%`
+                  : "실시간 시세 없음"
+              }
+              tone={
+                activeQuote
+                  ? activeQuote.isRising
+                    ? "rise"
+                    : "fall"
+                  : undefined
+              }
+            />
             <StatTile
               label="평가손익"
               value={
