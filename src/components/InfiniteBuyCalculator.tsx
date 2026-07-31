@@ -143,28 +143,33 @@ function PhaseBadge({
 function StatTile({
   label,
   value,
+  sub,
   tone,
 }: {
   label: string;
   value: string;
-  tone?: "success" | "critical";
+  sub?: string;
+  tone?: "rise" | "fall";
 }) {
+  const toneClass =
+    tone === "rise"
+      ? "text-[var(--rise)]"
+      : tone === "fall"
+        ? "text-[var(--fall)]"
+        : "";
   return (
     <div className="rounded-xl bg-[var(--surface-2)] px-4 py-3">
       <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
         {label}
       </div>
-      <div
-        className={`mt-1 text-lg font-semibold ${
-          tone === "success"
-            ? "text-[var(--success)]"
-            : tone === "critical"
-              ? "text-[var(--critical)]"
-              : ""
-        }`}
-      >
-        {value}
-      </div>
+      <div className={`mt-1 text-lg font-semibold ${toneClass}`}>{value}</div>
+      {sub && (
+        <div
+          className={`mt-0.5 text-xs ${tone ? toneClass : "text-[var(--text-muted)]"}`}
+        >
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
@@ -465,6 +470,15 @@ export default function InfiniteBuyCalculator() {
   const tickers = stocks.map((s) => s.ticker).filter((t): t is string => !!t);
   const { quotes, refresh } = useLivePrices(tickers);
 
+  const activeQuote = activeStock.ticker
+    ? quotes[activeStock.ticker]?.quote
+    : undefined;
+  const currentPrice = activeQuote?.price ?? summary.avgPrice;
+  const marketValue = summary.totalQty * currentPrice;
+  const profit = marketValue - summary.totalAmount;
+  const profitPercent =
+    summary.totalAmount > 0 ? (profit / summary.totalAmount) * 100 : 0;
+
   return (
     <div className="flex w-full">
       <LivePriceSidebar
@@ -678,6 +692,46 @@ export default function InfiniteBuyCalculator() {
           )}
         </div>
 
+        {/* 종목 요약 */}
+        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
+          <div className="mb-5 flex items-center gap-2">
+            <span className="h-4 w-1 rounded-full bg-[var(--accent)]" />
+            <h2 className="text-base font-semibold tracking-tight">
+              {activeStock.name} 요약
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatTile
+              label="총 매수량"
+              value={`${summary.totalQty.toLocaleString("ko-KR")}주`}
+            />
+            <StatTile label="총 매입금액" value={won(summary.totalAmount)} />
+            <StatTile label="평단가" value={won(summary.avgPrice)} />
+            <StatTile
+              label="평가손익"
+              value={
+                summary.totalQty > 0
+                  ? `${profit >= 0 ? "+" : ""}${won(profit)}`
+                  : "-"
+              }
+              sub={summary.totalQty > 0 ? pct(profitPercent) : undefined}
+              tone={
+                summary.totalQty > 0
+                  ? profit >= 0
+                    ? "rise"
+                    : "fall"
+                  : undefined
+              }
+            />
+          </div>
+          {summary.totalQty > 0 && !activeQuote && (
+            <p className="mt-3 text-xs text-[var(--text-muted)]">
+              실시간 시세가 없어 평단가 기준으로 계산했어요. 종목 코드를
+              등록하면 실시간 평가손익을 볼 수 있어요.
+            </p>
+          )}
+        </section>
+
         {/* 설정 */}
         <CollapsibleSection
           id="settings"
@@ -765,17 +819,6 @@ export default function InfiniteBuyCalculator() {
                   ))}
                 </tbody>
               </table>
-              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <StatTile
-                  label="총 매수량"
-                  value={`${summary.totalQty.toLocaleString("ko-KR")}주`}
-                />
-                <StatTile
-                  label="총 매입금액"
-                  value={won(summary.totalAmount)}
-                />
-                <StatTile label="평단가" value={won(summary.avgPrice)} />
-              </div>
             </div>
           )}
         </CollapsibleSection>
