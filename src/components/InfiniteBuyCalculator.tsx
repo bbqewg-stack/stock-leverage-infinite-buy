@@ -189,13 +189,26 @@ function TodayCalculator({
   );
   const quote = liveState?.quote;
 
+  // 매수 스케줄대로 무조건 사겠다는 보장이 없으니, 추천 매수량은 기본값으로만
+  // 쓰고 실제 매수 직전에 수량을 직접 조정할 수 있게 한다. 매입단가가
+  // 바뀌면(직접 입력/실시간가 적용) 새로 추천값을 기본값으로 되돌린다.
+  const [qtyOverride, setQtyOverride] = useState<number | null>(null);
+  const [lastPriceForOverride, setLastPriceForOverride] = useState(todayPrice);
+  if (todayPrice !== lastPriceForOverride) {
+    setLastPriceForOverride(todayPrice);
+    setQtyOverride(null);
+  }
+
+  const buyQty = qtyOverride ?? suggestion.buyQty;
+  const price = todayPrice || stock.settings.basePrice;
+  const buyAmount = buyQty * price;
+
   function addToLog() {
-    const price = todayPrice || stock.settings.basePrice;
     onAdd({
       id: crypto.randomUUID(),
       date: todayStr(),
       price,
-      qty: suggestion.buyQty,
+      qty: buyQty,
     });
   }
 
@@ -234,21 +247,29 @@ function TodayCalculator({
             changePercent={suggestion.changePercent}
           />
         </div>
-        <div className="flex flex-col gap-1.5 text-sm">
-          <span className="text-[var(--text-muted)]">주문 매수량</span>
-          <span className="font-semibold tabular-nums">
-            {suggestion.buyQty.toLocaleString("ko-KR")}주
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="text-[var(--text-muted)]">
+            주문 매수량
+            {qtyOverride !== null && qtyOverride !== suggestion.buyQty && (
+              <span className="ml-1 text-[var(--text-muted)]">
+                (추천 {suggestion.buyQty.toLocaleString("ko-KR")}주)
+              </span>
+            )}
           </span>
-        </div>
+          <input
+            type="number"
+            value={buyQty}
+            onChange={(e) => setQtyOverride(Number(e.target.value))}
+            className={`${inputClass} w-24`}
+          />
+        </label>
         <div className="flex flex-col gap-1.5 text-sm">
           <span className="text-[var(--text-muted)]">매입금액</span>
-          <span className="font-semibold tabular-nums">
-            {won(suggestion.buyAmount)}
-          </span>
+          <span className="font-semibold tabular-nums">{won(buyAmount)}</span>
         </div>
         <button
           onClick={addToLog}
-          disabled={suggestion.buyQty <= 0}
+          disabled={buyQty <= 0}
           className="rounded-lg bg-[var(--accent-hover)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           매수 기록에 추가
