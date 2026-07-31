@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Stock, summarizeTradeLog } from "@/lib/infiniteBuy";
-import { loadStocks } from "@/lib/stockStore";
+import { fetchRemoteState, loadStocks } from "@/lib/stockStore";
 import { useLivePrices } from "@/lib/useLivePrices";
 
 const won = (n: number) => `${Math.round(n).toLocaleString("ko-KR")}원`;
@@ -44,7 +44,18 @@ function StatCard({
 }
 
 export default function Dashboard() {
-  const [stocks] = useState<Stock[]>(() => loadStocks());
+  const [stocks, setStocks] = useState<Stock[]>(() => loadStocks());
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRemoteState().then((remote) => {
+      if (!cancelled && remote) setStocks(remote.stocks);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const tickers = stocks.map((s) => s.ticker).filter((t): t is string => !!t);
   const { quotes, refresh } = useLivePrices(tickers);
 

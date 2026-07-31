@@ -38,3 +38,36 @@ export function loadStocks(): Stock[] {
   stock.log = legacyLog;
   return [stock];
 }
+
+// 서버(DB)에 저장된 상태. 브라우저 저장소가 초기화되어도 여기서 복구한다.
+export interface RemoteState {
+  stocks: Stock[];
+  activeId: string;
+}
+
+export async function fetchRemoteState(): Promise<RemoteState | null> {
+  try {
+    const res = await fetch("/api/state", { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.stocks || !data.activeId) return null;
+    return data as RemoteState;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveRemoteState(
+  stocks: Stock[],
+  activeId: string,
+): Promise<void> {
+  try {
+    await fetch("/api/state", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stocks, activeId }),
+    });
+  } catch {
+    // 네트워크 오류는 조용히 무시 — localStorage가 여전히 로컬 백업 역할을 한다.
+  }
+}

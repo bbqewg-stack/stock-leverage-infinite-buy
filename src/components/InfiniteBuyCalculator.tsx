@@ -13,7 +13,14 @@ import {
   createStock,
   summarizeTradeLog,
 } from "@/lib/infiniteBuy";
-import { ACTIVE_KEY, STOCKS_KEY, loadJSON, loadStocks } from "@/lib/stockStore";
+import {
+  ACTIVE_KEY,
+  STOCKS_KEY,
+  fetchRemoteState,
+  loadJSON,
+  loadStocks,
+  saveRemoteState,
+} from "@/lib/stockStore";
 import { useLivePrices, type LiveQuoteState } from "@/lib/useLivePrices";
 import LivePriceSidebar from "@/components/LivePriceSidebar";
 
@@ -248,6 +255,34 @@ export default function InfiniteBuyCalculator() {
   useEffect(() => {
     window.localStorage.setItem(ACTIVE_KEY, activeId);
   }, [activeId]);
+
+  // 브라우저가 초기화돼도 데이터가 남아있도록, 서버(DB)에 저장된 상태가 있으면
+  // 로컬 캐시보다 우선해서 덮어쓴다. 최초 fetch가 끝나기 전까지는 저장을 미룬다
+  // (빈 상태로 서버 데이터를 덮어쓰는 걸 방지).
+  const [hasHydratedRemote, setHasHydratedRemote] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRemoteState().then((remote) => {
+      if (cancelled) return;
+      if (remote) {
+        setStocks(remote.stocks);
+        setActiveId(remote.activeId);
+      }
+      setHasHydratedRemote(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydratedRemote) return;
+    const id = setTimeout(() => {
+      saveRemoteState(stocks, activeId);
+    }, 800);
+    return () => clearTimeout(id);
+  }, [stocks, activeId, hasHydratedRemote]);
 
   const activeStock = stocks.find((s) => s.id === activeId) ?? stocks[0];
 
