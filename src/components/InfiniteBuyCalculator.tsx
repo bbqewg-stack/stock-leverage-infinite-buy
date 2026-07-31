@@ -555,166 +555,160 @@ export default function InfiniteBuyCalculator() {
           <p className="-mt-4 text-xs text-[var(--critical)]">{backupError}</p>
         )}
 
+        {/* 종목 탭 */}
+        <div className="flex flex-wrap items-center gap-2">
+          {stocks.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => {
+                setActiveId(s.id);
+                setIsRenaming(false);
+                setIsEditingTicker(false);
+                setTickerError(null);
+              }}
+              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+                s.id === activeId
+                  ? "bg-[var(--accent-hover)] text-white"
+                  : "bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              {s.name}
+            </button>
+          ))}
+
+          {isAddingStock ? (
+            <form
+              onSubmit={submitNewStock}
+              className="flex items-center gap-1.5"
+            >
+              <input
+                autoFocus
+                value={newStockName}
+                onChange={(e) => setNewStockName(e.target.value)}
+                placeholder="종목명 입력"
+                className="w-32 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+              />
+              <input
+                value={newStockTicker}
+                onChange={(e) => setNewStockTicker(e.target.value)}
+                placeholder="종목코드 (선택)"
+                className="w-28 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+              />
+              <button
+                type="submit"
+                className="text-xs font-medium text-[var(--accent-text)]"
+              >
+                추가
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAddingStock(false)}
+                className="text-xs text-[var(--text-muted)] hover:text-[var(--foreground)]"
+              >
+                취소
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => setIsAddingStock(true)}
+              className="rounded-full border border-dashed border-[var(--hairline)] px-3.5 py-1.5 text-sm text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
+            >
+              + 종목 추가
+            </button>
+          )}
+        </div>
+
+        {/* 현재 종목 관리 */}
+        <div className="-mt-3 flex items-center gap-3 text-xs text-[var(--text-muted)]">
+          {isRenaming ? (
+            <form onSubmit={submitRename} className="flex items-center gap-1.5">
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                className="rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
+              />
+              <button
+                type="submit"
+                className="font-medium text-[var(--accent-text)]"
+              >
+                저장
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsRenaming(false)}
+                className="hover:text-[var(--foreground)]"
+              >
+                취소
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => {
+                setRenameValue(activeStock.name);
+                setIsRenaming(true);
+              }}
+              className="underline underline-offset-2 hover:text-[var(--foreground)]"
+            >
+              종목명 변경
+            </button>
+          )}
+
+          {isEditingTicker ? (
+            <form onSubmit={submitTicker} className="flex items-center gap-1.5">
+              <input
+                autoFocus
+                value={tickerValue}
+                onChange={(e) => setTickerValue(e.target.value)}
+                placeholder="예: 069500"
+                className="w-24 rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
+              />
+              <button
+                type="submit"
+                className="font-medium text-[var(--accent-text)]"
+              >
+                저장
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingTicker(false);
+                  setTickerError(null);
+                }}
+                className="hover:text-[var(--foreground)]"
+              >
+                취소
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => {
+                setTickerValue(activeStock.ticker ?? "");
+                setIsEditingTicker(true);
+              }}
+              className="underline underline-offset-2 hover:text-[var(--foreground)]"
+            >
+              {activeStock.ticker
+                ? `종목 코드: ${activeStock.ticker}`
+                : "종목 코드 등록"}
+            </button>
+          )}
+          {tickerError && (
+            <span className="text-[var(--critical)]">{tickerError}</span>
+          )}
+
+          {stocks.length > 1 && (
+            <button
+              onClick={deleteActiveStock}
+              className="underline underline-offset-2 hover:text-[var(--critical)]"
+            >
+              이 종목 삭제
+            </button>
+          )}
+        </div>
+
         <div className="flex w-full flex-col gap-6 xl:flex-row xl:items-start">
           <div className="flex min-w-0 flex-1 flex-col gap-6">
-            {/* 종목 탭 */}
-            <div className="flex flex-wrap items-center gap-2">
-              {stocks.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => {
-                    setActiveId(s.id);
-                    setIsRenaming(false);
-                    setIsEditingTicker(false);
-                    setTickerError(null);
-                  }}
-                  className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
-                    s.id === activeId
-                      ? "bg-[var(--accent-hover)] text-white"
-                      : "bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--foreground)]"
-                  }`}
-                >
-                  {s.name}
-                </button>
-              ))}
-
-              {isAddingStock ? (
-                <form
-                  onSubmit={submitNewStock}
-                  className="flex items-center gap-1.5"
-                >
-                  <input
-                    autoFocus
-                    value={newStockName}
-                    onChange={(e) => setNewStockName(e.target.value)}
-                    placeholder="종목명 입력"
-                    className="w-32 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
-                  />
-                  <input
-                    value={newStockTicker}
-                    onChange={(e) => setNewStockTicker(e.target.value)}
-                    placeholder="종목코드 (선택)"
-                    className="w-28 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
-                  />
-                  <button
-                    type="submit"
-                    className="text-xs font-medium text-[var(--accent-text)]"
-                  >
-                    추가
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingStock(false)}
-                    className="text-xs text-[var(--text-muted)] hover:text-[var(--foreground)]"
-                  >
-                    취소
-                  </button>
-                </form>
-              ) : (
-                <button
-                  onClick={() => setIsAddingStock(true)}
-                  className="rounded-full border border-dashed border-[var(--hairline)] px-3.5 py-1.5 text-sm text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
-                >
-                  + 종목 추가
-                </button>
-              )}
-            </div>
-
-            {/* 현재 종목 관리 */}
-            <div className="-mt-3 flex items-center gap-3 text-xs text-[var(--text-muted)]">
-              {isRenaming ? (
-                <form
-                  onSubmit={submitRename}
-                  className="flex items-center gap-1.5"
-                >
-                  <input
-                    autoFocus
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    className="rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
-                  />
-                  <button
-                    type="submit"
-                    className="font-medium text-[var(--accent-text)]"
-                  >
-                    저장
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsRenaming(false)}
-                    className="hover:text-[var(--foreground)]"
-                  >
-                    취소
-                  </button>
-                </form>
-              ) : (
-                <button
-                  onClick={() => {
-                    setRenameValue(activeStock.name);
-                    setIsRenaming(true);
-                  }}
-                  className="underline underline-offset-2 hover:text-[var(--foreground)]"
-                >
-                  종목명 변경
-                </button>
-              )}
-
-              {isEditingTicker ? (
-                <form
-                  onSubmit={submitTicker}
-                  className="flex items-center gap-1.5"
-                >
-                  <input
-                    autoFocus
-                    value={tickerValue}
-                    onChange={(e) => setTickerValue(e.target.value)}
-                    placeholder="예: 069500"
-                    className="w-24 rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
-                  />
-                  <button
-                    type="submit"
-                    className="font-medium text-[var(--accent-text)]"
-                  >
-                    저장
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditingTicker(false);
-                      setTickerError(null);
-                    }}
-                    className="hover:text-[var(--foreground)]"
-                  >
-                    취소
-                  </button>
-                </form>
-              ) : (
-                <button
-                  onClick={() => {
-                    setTickerValue(activeStock.ticker ?? "");
-                    setIsEditingTicker(true);
-                  }}
-                  className="underline underline-offset-2 hover:text-[var(--foreground)]"
-                >
-                  {activeStock.ticker
-                    ? `종목 코드: ${activeStock.ticker}`
-                    : "종목 코드 등록"}
-                </button>
-              )}
-              {tickerError && (
-                <span className="text-[var(--critical)]">{tickerError}</span>
-              )}
-
-              {stocks.length > 1 && (
-                <button
-                  onClick={deleteActiveStock}
-                  className="underline underline-offset-2 hover:text-[var(--critical)]"
-                >
-                  이 종목 삭제
-                </button>
-              )}
-            </div>
-
             {/* 종목 요약 */}
             <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
               <div className="mb-5 flex flex-wrap items-center gap-2">
