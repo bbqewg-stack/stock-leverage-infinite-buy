@@ -9,6 +9,48 @@ import { useLivePrices } from "@/lib/useLivePrices";
 const won = (n: number) => `${Math.round(n).toLocaleString("ko-KR")}원`;
 const pct = (n: number) => `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
 
+type SortKey =
+  | "name"
+  | "qty"
+  | "avgPrice"
+  | "totalAmount"
+  | "currentPrice"
+  | "marketValue"
+  | "profit";
+
+function SortableTh({
+  label,
+  align = "right",
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  align?: "left" | "right";
+  active: boolean;
+  dir: "asc" | "desc";
+  onClick: () => void;
+}) {
+  return (
+    <th
+      className={`py-1.5 font-normal ${align === "right" ? "text-right" : "text-left"}`}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        className={`inline-flex items-center gap-1 transition hover:text-[var(--foreground)] ${
+          align === "right" ? "flex-row-reverse" : ""
+        } ${active ? "font-medium text-[var(--foreground)]" : ""}`}
+      >
+        {label}
+        <span className="text-[10px] text-[var(--text-muted)]">
+          {active ? (dir === "desc" ? "▼" : "▲") : "↕"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
 function StatCard({
   label,
   value,
@@ -85,6 +127,37 @@ export default function Dashboard() {
 
   const holdings = rows.filter((r) => r.summary.totalQty > 0);
 
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  }
+
+  const sortedHoldings = useMemo(() => {
+    if (!sortKey) return holdings;
+    const dirMul = sortDir === "desc" ? -1 : 1;
+    return [...holdings].sort((a, b) => {
+      if (sortKey === "name") {
+        return dirMul * a.stock.name.localeCompare(b.stock.name, "ko");
+      }
+      const valueOf = {
+        qty: (r: (typeof holdings)[number]) => r.summary.totalQty,
+        avgPrice: (r: (typeof holdings)[number]) => r.summary.avgPrice,
+        totalAmount: (r: (typeof holdings)[number]) => r.summary.totalAmount,
+        currentPrice: (r: (typeof holdings)[number]) => r.currentPrice,
+        marketValue: (r: (typeof holdings)[number]) => r.marketValue,
+        profit: (r: (typeof holdings)[number]) => r.profit,
+      }[sortKey];
+      return dirMul * (valueOf(a) - valueOf(b));
+    });
+  }, [holdings, sortKey, sortDir]);
+
   const totals = useMemo(() => {
     const totalInvested = holdings.reduce(
       (sum, r) => sum + r.summary.totalAmount,
@@ -156,17 +229,53 @@ export default function Dashboard() {
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-[var(--hairline)] text-left text-[var(--text-muted)]">
-                  <th className="py-1.5 font-normal">종목</th>
-                  <th className="py-1.5 text-right font-normal">보유수량</th>
-                  <th className="py-1.5 text-right font-normal">평단가</th>
-                  <th className="py-1.5 text-right font-normal">매입금액</th>
-                  <th className="py-1.5 text-right font-normal">현재가</th>
-                  <th className="py-1.5 text-right font-normal">평가금액</th>
-                  <th className="py-1.5 text-right font-normal">평가손익</th>
+                  <SortableTh
+                    label="종목"
+                    align="left"
+                    active={sortKey === "name"}
+                    dir={sortDir}
+                    onClick={() => handleSort("name")}
+                  />
+                  <SortableTh
+                    label="보유수량"
+                    active={sortKey === "qty"}
+                    dir={sortDir}
+                    onClick={() => handleSort("qty")}
+                  />
+                  <SortableTh
+                    label="평단가"
+                    active={sortKey === "avgPrice"}
+                    dir={sortDir}
+                    onClick={() => handleSort("avgPrice")}
+                  />
+                  <SortableTh
+                    label="매입금액"
+                    active={sortKey === "totalAmount"}
+                    dir={sortDir}
+                    onClick={() => handleSort("totalAmount")}
+                  />
+                  <SortableTh
+                    label="현재가"
+                    active={sortKey === "currentPrice"}
+                    dir={sortDir}
+                    onClick={() => handleSort("currentPrice")}
+                  />
+                  <SortableTh
+                    label="평가금액"
+                    active={sortKey === "marketValue"}
+                    dir={sortDir}
+                    onClick={() => handleSort("marketValue")}
+                  />
+                  <SortableTh
+                    label="평가손익"
+                    active={sortKey === "profit"}
+                    dir={sortDir}
+                    onClick={() => handleSort("profit")}
+                  />
                 </tr>
               </thead>
               <tbody>
-                {holdings.map(
+                {sortedHoldings.map(
                   ({
                     stock,
                     summary,
