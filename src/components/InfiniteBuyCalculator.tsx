@@ -69,19 +69,21 @@ function CollapsibleSection({
   id,
   title,
   actions,
+  defaultOpen = true,
   children,
 }: {
   id: string;
   title: string;
   actions?: React.ReactNode;
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(() => {
-    if (typeof window === "undefined") return true;
+    if (typeof window === "undefined") return defaultOpen;
     const saved = window.localStorage.getItem(
       `${SECTION_OPEN_KEY_PREFIX}${id}`,
     );
-    return saved === null ? true : saved === "true";
+    return saved === null ? defaultOpen : saved === "true";
   });
 
   useEffect(() => {
@@ -501,7 +503,7 @@ export default function InfiniteBuyCalculator() {
         onSelect={setActiveId}
         onRefresh={refresh}
       />
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-12">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-12">
         <header className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
@@ -553,361 +555,395 @@ export default function InfiniteBuyCalculator() {
           <p className="-mt-4 text-xs text-[var(--critical)]">{backupError}</p>
         )}
 
-        {/* 종목 탭 */}
-        <div className="flex flex-wrap items-center gap-2">
-          {stocks.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => {
-                setActiveId(s.id);
-                setIsRenaming(false);
-                setIsEditingTicker(false);
-                setTickerError(null);
-              }}
-              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
-                s.id === activeId
-                  ? "bg-[var(--accent-hover)] text-white"
-                  : "bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--foreground)]"
-              }`}
-            >
-              {s.name}
-            </button>
-          ))}
+        <div className="flex w-full flex-col gap-6 xl:flex-row xl:items-start">
+          <div className="flex min-w-0 flex-1 flex-col gap-6">
+            {/* 종목 탭 */}
+            <div className="flex flex-wrap items-center gap-2">
+              {stocks.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    setActiveId(s.id);
+                    setIsRenaming(false);
+                    setIsEditingTicker(false);
+                    setTickerError(null);
+                  }}
+                  className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+                    s.id === activeId
+                      ? "bg-[var(--accent-hover)] text-white"
+                      : "bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  {s.name}
+                </button>
+              ))}
 
-          {isAddingStock ? (
-            <form
-              onSubmit={submitNewStock}
-              className="flex items-center gap-1.5"
-            >
-              <input
-                autoFocus
-                value={newStockName}
-                onChange={(e) => setNewStockName(e.target.value)}
-                placeholder="종목명 입력"
-                className="w-32 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
-              />
-              <input
-                value={newStockTicker}
-                onChange={(e) => setNewStockTicker(e.target.value)}
-                placeholder="종목코드 (선택)"
-                className="w-28 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
-              />
-              <button
-                type="submit"
-                className="text-xs font-medium text-[var(--accent-text)]"
-              >
-                추가
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsAddingStock(false)}
-                className="text-xs text-[var(--text-muted)] hover:text-[var(--foreground)]"
-              >
-                취소
-              </button>
-            </form>
-          ) : (
-            <button
-              onClick={() => setIsAddingStock(true)}
-              className="rounded-full border border-dashed border-[var(--hairline)] px-3.5 py-1.5 text-sm text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
-            >
-              + 종목 추가
-            </button>
-          )}
-        </div>
-
-        {/* 현재 종목 관리 */}
-        <div className="-mt-3 flex items-center gap-3 text-xs text-[var(--text-muted)]">
-          {isRenaming ? (
-            <form onSubmit={submitRename} className="flex items-center gap-1.5">
-              <input
-                autoFocus
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                className="rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
-              />
-              <button
-                type="submit"
-                className="font-medium text-[var(--accent-text)]"
-              >
-                저장
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsRenaming(false)}
-                className="hover:text-[var(--foreground)]"
-              >
-                취소
-              </button>
-            </form>
-          ) : (
-            <button
-              onClick={() => {
-                setRenameValue(activeStock.name);
-                setIsRenaming(true);
-              }}
-              className="underline underline-offset-2 hover:text-[var(--foreground)]"
-            >
-              종목명 변경
-            </button>
-          )}
-
-          {isEditingTicker ? (
-            <form onSubmit={submitTicker} className="flex items-center gap-1.5">
-              <input
-                autoFocus
-                value={tickerValue}
-                onChange={(e) => setTickerValue(e.target.value)}
-                placeholder="예: 069500"
-                className="w-24 rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
-              />
-              <button
-                type="submit"
-                className="font-medium text-[var(--accent-text)]"
-              >
-                저장
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsEditingTicker(false);
-                  setTickerError(null);
-                }}
-                className="hover:text-[var(--foreground)]"
-              >
-                취소
-              </button>
-            </form>
-          ) : (
-            <button
-              onClick={() => {
-                setTickerValue(activeStock.ticker ?? "");
-                setIsEditingTicker(true);
-              }}
-              className="underline underline-offset-2 hover:text-[var(--foreground)]"
-            >
-              {activeStock.ticker
-                ? `종목 코드: ${activeStock.ticker}`
-                : "종목 코드 등록"}
-            </button>
-          )}
-          {tickerError && (
-            <span className="text-[var(--critical)]">{tickerError}</span>
-          )}
-
-          {stocks.length > 1 && (
-            <button
-              onClick={deleteActiveStock}
-              className="underline underline-offset-2 hover:text-[var(--critical)]"
-            >
-              이 종목 삭제
-            </button>
-          )}
-        </div>
-
-        {/* 종목 요약 */}
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
-          <div className="mb-5 flex items-center gap-2">
-            <span className="h-4 w-1 rounded-full bg-[var(--accent)]" />
-            <h2 className="text-base font-semibold tracking-tight">
-              {activeStock.name} 요약
-            </h2>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <StatTile
-              label="총 매수량"
-              value={`${summary.totalQty.toLocaleString("ko-KR")}주`}
-            />
-            <StatTile label="총 매입금액" value={won(summary.totalAmount)} />
-            <StatTile
-              label="평단가"
-              value={won(summary.avgPrice)}
-              sub={
-                summary.totalQty > 0 && activeQuote
-                  ? `현재가-평단가 ${priceGap >= 0 ? "+" : ""}${won(priceGap)}`
-                  : undefined
-              }
-              subTone={
-                summary.totalQty > 0 && activeQuote
-                  ? priceGap >= 0
-                    ? "rise"
-                    : "fall"
-                  : undefined
-              }
-            />
-            <StatTile
-              label="현재가"
-              value={activeQuote ? won(activeQuote.price) : "-"}
-              sub={
-                activeQuote
-                  ? `${activeQuote.isRising ? "▲" : "▼"} ${Math.abs(activeQuote.changeRatio).toFixed(2)}%`
-                  : "실시간 시세 없음"
-              }
-              tone={
-                activeQuote
-                  ? activeQuote.isRising
-                    ? "rise"
-                    : "fall"
-                  : undefined
-              }
-            />
-            <StatTile
-              label="평가손익"
-              value={
-                summary.totalQty > 0
-                  ? `${profit >= 0 ? "+" : ""}${won(profit)}`
-                  : "-"
-              }
-              sub={summary.totalQty > 0 ? pct(profitPercent) : undefined}
-              tone={
-                summary.totalQty > 0
-                  ? profit >= 0
-                    ? "rise"
-                    : "fall"
-                  : undefined
-              }
-            />
-          </div>
-          {summary.totalQty > 0 && !activeQuote && (
-            <p className="mt-3 text-xs text-[var(--text-muted)]">
-              실시간 시세가 없어 평단가 기준으로 계산했어요. 종목 코드를
-              등록하면 실시간 평가손익을 볼 수 있어요.
-            </p>
-          )}
-        </section>
-
-        {/* 설정 */}
-        <CollapsibleSection
-          id="settings"
-          title="설정"
-          actions={
-            <button
-              onClick={resetSettings}
-              className="text-xs text-[var(--text-muted)] underline underline-offset-2 hover:text-[var(--foreground)]"
-            >
-              기본값으로 초기화
-            </button>
-          }
-        >
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {SETTINGS_FIELDS.map((field) => (
-              <label key={field.key} className="flex flex-col gap-1.5 text-sm">
-                <span className="text-[var(--text-muted)]">{field.label}</span>
-                <input
-                  type="number"
-                  value={activeStock.settings[field.key]}
-                  onChange={(e) =>
-                    updateSetting(field.key, Number(e.target.value))
-                  }
-                  className={inputClass}
-                />
-              </label>
-            ))}
-          </div>
-        </CollapsibleSection>
-
-        {/* 오늘 매입 계산기 */}
-        <TodayCalculator
-          key={activeStock.id}
-          stock={activeStock}
-          liveState={
-            activeStock.ticker ? quotes[activeStock.ticker] : undefined
-          }
-          onAdd={addToLog}
-          onRefresh={refresh}
-        />
-
-        {/* 매수 기록 */}
-        <CollapsibleSection id="trade-log" title="매수 기록">
-          {activeStock.log.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">
-              아직 기록이 없습니다.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[480px] text-sm">
-                <thead>
-                  <tr className="border-b border-[var(--hairline)] text-left text-[var(--text-muted)]">
-                    <th className="py-1.5 font-normal">날짜</th>
-                    <th className="py-1.5 text-right font-normal">매입단가</th>
-                    <th className="py-1.5 text-right font-normal">매수량</th>
-                    <th className="py-1.5 text-right font-normal">매입금액</th>
-                    <th className="py-1.5 font-normal" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeStock.log.map((entry) => (
-                    <tr
-                      key={entry.id}
-                      className="border-b border-[var(--hairline)]/60"
-                    >
-                      <td className="py-1.5">{entry.date}</td>
-                      <td className="py-1.5 text-right tabular-nums">
-                        {won(entry.price)}
-                      </td>
-                      <td className="py-1.5 text-right tabular-nums">
-                        {entry.qty.toLocaleString("ko-KR")}주
-                      </td>
-                      <td className="py-1.5 text-right tabular-nums">
-                        {won(entry.price * entry.qty)}
-                      </td>
-                      <td className="py-1.5 text-right">
-                        <button
-                          onClick={() => removeFromLog(entry.id)}
-                          className="text-xs text-[var(--text-muted)] hover:text-[var(--critical)]"
-                        >
-                          삭제
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CollapsibleSection>
-
-        {/* 시뮬레이션 표 */}
-        <CollapsibleSection id="schedule" title="회차별 매수 스케줄 시뮬레이션">
-          <div className="max-h-[480px] overflow-auto">
-            <table className="w-full min-w-[520px] text-sm">
-              <thead className="sticky top-0 bg-[var(--surface)]">
-                <tr className="border-b border-[var(--hairline)] text-left text-[var(--text-muted)]">
-                  <th className="py-1.5 font-normal">회차</th>
-                  <th className="py-1.5 font-normal">변동률</th>
-                  <th className="py-1.5 text-right font-normal">매입단가</th>
-                  <th className="py-1.5 text-right font-normal">매입수량</th>
-                  <th className="py-1.5 text-right font-normal">매입금액</th>
-                </tr>
-              </thead>
-              <tbody>
-                {schedule.map((row) => (
-                  <tr
-                    key={row.round}
-                    className="border-b border-[var(--hairline)]/60"
+              {isAddingStock ? (
+                <form
+                  onSubmit={submitNewStock}
+                  className="flex items-center gap-1.5"
+                >
+                  <input
+                    autoFocus
+                    value={newStockName}
+                    onChange={(e) => setNewStockName(e.target.value)}
+                    placeholder="종목명 입력"
+                    className="w-32 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+                  />
+                  <input
+                    value={newStockTicker}
+                    onChange={(e) => setNewStockTicker(e.target.value)}
+                    placeholder="종목코드 (선택)"
+                    className="w-28 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+                  />
+                  <button
+                    type="submit"
+                    className="text-xs font-medium text-[var(--accent-text)]"
                   >
-                    <td className="py-1.5 tabular-nums">{row.round}</td>
-                    <td className="py-1.5">
-                      <PhaseBadge
-                        phase={row.phase}
-                        changePercent={row.changePercent}
-                      />
-                    </td>
-                    <td className="py-1.5 text-right tabular-nums">
-                      {won(row.buyPrice)}
-                    </td>
-                    <td className="py-1.5 text-right tabular-nums">
-                      {row.buyQty.toLocaleString("ko-KR")}주
-                    </td>
-                    <td className="py-1.5 text-right tabular-nums">
-                      {won(row.buyAmount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    추가
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingStock(false)}
+                    className="text-xs text-[var(--text-muted)] hover:text-[var(--foreground)]"
+                  >
+                    취소
+                  </button>
+                </form>
+              ) : (
+                <button
+                  onClick={() => setIsAddingStock(true)}
+                  className="rounded-full border border-dashed border-[var(--hairline)] px-3.5 py-1.5 text-sm text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
+                >
+                  + 종목 추가
+                </button>
+              )}
+            </div>
+
+            {/* 현재 종목 관리 */}
+            <div className="-mt-3 flex items-center gap-3 text-xs text-[var(--text-muted)]">
+              {isRenaming ? (
+                <form
+                  onSubmit={submitRename}
+                  className="flex items-center gap-1.5"
+                >
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    className="rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
+                  />
+                  <button
+                    type="submit"
+                    className="font-medium text-[var(--accent-text)]"
+                  >
+                    저장
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsRenaming(false)}
+                    className="hover:text-[var(--foreground)]"
+                  >
+                    취소
+                  </button>
+                </form>
+              ) : (
+                <button
+                  onClick={() => {
+                    setRenameValue(activeStock.name);
+                    setIsRenaming(true);
+                  }}
+                  className="underline underline-offset-2 hover:text-[var(--foreground)]"
+                >
+                  종목명 변경
+                </button>
+              )}
+
+              {isEditingTicker ? (
+                <form
+                  onSubmit={submitTicker}
+                  className="flex items-center gap-1.5"
+                >
+                  <input
+                    autoFocus
+                    value={tickerValue}
+                    onChange={(e) => setTickerValue(e.target.value)}
+                    placeholder="예: 069500"
+                    className="w-24 rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
+                  />
+                  <button
+                    type="submit"
+                    className="font-medium text-[var(--accent-text)]"
+                  >
+                    저장
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingTicker(false);
+                      setTickerError(null);
+                    }}
+                    className="hover:text-[var(--foreground)]"
+                  >
+                    취소
+                  </button>
+                </form>
+              ) : (
+                <button
+                  onClick={() => {
+                    setTickerValue(activeStock.ticker ?? "");
+                    setIsEditingTicker(true);
+                  }}
+                  className="underline underline-offset-2 hover:text-[var(--foreground)]"
+                >
+                  {activeStock.ticker
+                    ? `종목 코드: ${activeStock.ticker}`
+                    : "종목 코드 등록"}
+                </button>
+              )}
+              {tickerError && (
+                <span className="text-[var(--critical)]">{tickerError}</span>
+              )}
+
+              {stocks.length > 1 && (
+                <button
+                  onClick={deleteActiveStock}
+                  className="underline underline-offset-2 hover:text-[var(--critical)]"
+                >
+                  이 종목 삭제
+                </button>
+              )}
+            </div>
+
+            {/* 종목 요약 */}
+            <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
+              <div className="mb-5 flex flex-wrap items-center gap-2">
+                <span className="h-4 w-1 rounded-full bg-[var(--accent)]" />
+                <h2 className="text-base font-semibold tracking-tight">
+                  {activeStock.name} 요약
+                </h2>
+                {activeQuote && (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-semibold tabular-nums ${
+                      activeQuote.isRising
+                        ? "bg-[var(--rise)]/10 text-[var(--rise)]"
+                        : "bg-[var(--fall)]/10 text-[var(--fall)]"
+                    }`}
+                  >
+                    {won(activeQuote.price)}
+                    <span className="text-xs">
+                      {activeQuote.isRising ? "▲" : "▼"}{" "}
+                      {Math.abs(activeQuote.changeRatio).toFixed(2)}%
+                    </span>
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <StatTile
+                  label="총 매수량"
+                  value={`${summary.totalQty.toLocaleString("ko-KR")}주`}
+                />
+                <StatTile
+                  label="총 매입금액"
+                  value={won(summary.totalAmount)}
+                />
+                <StatTile
+                  label="평단가"
+                  value={won(summary.avgPrice)}
+                  sub={
+                    summary.totalQty > 0 && activeQuote
+                      ? `현재가-평단가 ${priceGap >= 0 ? "+" : ""}${won(priceGap)}`
+                      : undefined
+                  }
+                  subTone={
+                    summary.totalQty > 0 && activeQuote
+                      ? priceGap >= 0
+                        ? "rise"
+                        : "fall"
+                      : undefined
+                  }
+                />
+                <StatTile
+                  label="평가손익"
+                  value={
+                    summary.totalQty > 0
+                      ? `${profit >= 0 ? "+" : ""}${won(profit)}`
+                      : "-"
+                  }
+                  sub={summary.totalQty > 0 ? pct(profitPercent) : undefined}
+                  tone={
+                    summary.totalQty > 0
+                      ? profit >= 0
+                        ? "rise"
+                        : "fall"
+                      : undefined
+                  }
+                />
+              </div>
+              {summary.totalQty > 0 && !activeQuote && (
+                <p className="mt-3 text-xs text-[var(--text-muted)]">
+                  실시간 시세가 없어 평단가 기준으로 계산했어요. 종목 코드를
+                  등록하면 실시간 평가손익을 볼 수 있어요.
+                </p>
+              )}
+            </section>
+
+            {/* 오늘 매입 계산기 */}
+            <TodayCalculator
+              key={activeStock.id}
+              stock={activeStock}
+              liveState={
+                activeStock.ticker ? quotes[activeStock.ticker] : undefined
+              }
+              onAdd={addToLog}
+              onRefresh={refresh}
+            />
+
+            {/* 매수 기록 */}
+            <CollapsibleSection id="trade-log" title="매수 기록">
+              {activeStock.log.length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">
+                  아직 기록이 없습니다.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[480px] text-sm">
+                    <thead>
+                      <tr className="border-b border-[var(--hairline)] text-left text-[var(--text-muted)]">
+                        <th className="py-1.5 font-normal">날짜</th>
+                        <th className="py-1.5 text-right font-normal">
+                          매입단가
+                        </th>
+                        <th className="py-1.5 text-right font-normal">
+                          매수량
+                        </th>
+                        <th className="py-1.5 text-right font-normal">
+                          매입금액
+                        </th>
+                        <th className="py-1.5 font-normal" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeStock.log.map((entry) => (
+                        <tr
+                          key={entry.id}
+                          className="border-b border-[var(--hairline)]/60"
+                        >
+                          <td className="py-1.5">{entry.date}</td>
+                          <td className="py-1.5 text-right tabular-nums">
+                            {won(entry.price)}
+                          </td>
+                          <td className="py-1.5 text-right tabular-nums">
+                            {entry.qty.toLocaleString("ko-KR")}주
+                          </td>
+                          <td className="py-1.5 text-right tabular-nums">
+                            {won(entry.price * entry.qty)}
+                          </td>
+                          <td className="py-1.5 text-right">
+                            <button
+                              onClick={() => removeFromLog(entry.id)}
+                              className="text-xs text-[var(--text-muted)] hover:text-[var(--critical)]"
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CollapsibleSection>
+
+            {/* 시뮬레이션 표 */}
+            <CollapsibleSection
+              id="schedule"
+              title="회차별 매수 스케줄 시뮬레이션"
+            >
+              <div className="max-h-[480px] overflow-auto">
+                <table className="w-full min-w-[520px] text-sm">
+                  <thead className="sticky top-0 bg-[var(--surface)]">
+                    <tr className="border-b border-[var(--hairline)] text-left text-[var(--text-muted)]">
+                      <th className="py-1.5 font-normal">회차</th>
+                      <th className="py-1.5 font-normal">변동률</th>
+                      <th className="py-1.5 text-right font-normal">
+                        매입단가
+                      </th>
+                      <th className="py-1.5 text-right font-normal">
+                        매입수량
+                      </th>
+                      <th className="py-1.5 text-right font-normal">
+                        매입금액
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {schedule.map((row) => (
+                      <tr
+                        key={row.round}
+                        className="border-b border-[var(--hairline)]/60"
+                      >
+                        <td className="py-1.5 tabular-nums">{row.round}</td>
+                        <td className="py-1.5">
+                          <PhaseBadge
+                            phase={row.phase}
+                            changePercent={row.changePercent}
+                          />
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums">
+                          {won(row.buyPrice)}
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums">
+                          {row.buyQty.toLocaleString("ko-KR")}주
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums">
+                          {won(row.buyAmount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CollapsibleSection>
           </div>
-        </CollapsibleSection>
+
+          <aside className="w-full xl:sticky xl:top-6 xl:w-80 xl:shrink-0">
+            <CollapsibleSection
+              id="settings"
+              title="설정"
+              defaultOpen={false}
+              actions={
+                <button
+                  onClick={resetSettings}
+                  className="text-xs text-[var(--text-muted)] underline underline-offset-2 hover:text-[var(--foreground)]"
+                >
+                  기본값으로 초기화
+                </button>
+              }
+            >
+              <div className="grid grid-cols-2 gap-4">
+                {SETTINGS_FIELDS.map((field) => (
+                  <label
+                    key={field.key}
+                    className="flex flex-col gap-1.5 text-sm"
+                  >
+                    <span className="text-[var(--text-muted)]">
+                      {field.label}
+                    </span>
+                    <input
+                      type="number"
+                      value={activeStock.settings[field.key]}
+                      onChange={(e) =>
+                        updateSetting(field.key, Number(e.target.value))
+                      }
+                      className={inputClass}
+                    />
+                  </label>
+                ))}
+              </div>
+            </CollapsibleSection>
+          </aside>
+        </div>
       </div>
     </div>
   );
