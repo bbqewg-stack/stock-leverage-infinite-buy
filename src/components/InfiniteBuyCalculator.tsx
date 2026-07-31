@@ -150,6 +150,74 @@ function toneTextClass(tone?: "rise" | "fall") {
       : "";
 }
 
+function IconButton({
+  title,
+  onClick,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--hairline)] text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
+    >
+      {children}
+    </button>
+  );
+}
+
+const ExcelIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    className="h-4 w-4"
+  >
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <path d="M3 9h18M3 15h18M9 3v18" />
+  </svg>
+);
+
+const DownloadIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-4 w-4"
+  >
+    <path d="M12 3v12" />
+    <path d="M7 10l5 5 5-5" />
+    <path d="M4 20h16" />
+  </svg>
+);
+
+const UploadIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-4 w-4"
+  >
+    <path d="M12 21V9" />
+    <path d="M7 14l5-5 5 5" />
+    <path d="M4 20h16" />
+  </svg>
+);
+
 function StatTile({
   label,
   value,
@@ -519,27 +587,6 @@ export default function InfiniteBuyCalculator() {
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
-            >
-              엑셀로 내보내기
-            </button>
-            <button
-              type="button"
-              onClick={handleBackupDownload}
-              className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
-            >
-              백업 다운로드
-            </button>
-            <button
-              type="button"
-              onClick={() => backupInputRef.current?.click()}
-              className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
-            >
-              백업 불러오기
-            </button>
             <input
               ref={backupInputRef}
               type="file"
@@ -549,7 +596,7 @@ export default function InfiniteBuyCalculator() {
             />
             <Link
               href="/dashboard"
-              className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)]"
+              className="whitespace-nowrap rounded-lg bg-[var(--accent-hover)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
             >
               대시보드 보기 →
             </Link>
@@ -905,7 +952,21 @@ export default function InfiniteBuyCalculator() {
             </CollapsibleSection>
           </div>
 
-          <aside className="w-full xl:sticky xl:top-6 xl:w-80 xl:shrink-0">
+          <aside className="flex w-full flex-col gap-3 xl:sticky xl:top-6 xl:w-80 xl:shrink-0">
+            <div className="flex items-center justify-end gap-2">
+              <IconButton title="엑셀로 내보내기" onClick={handleExportExcel}>
+                <ExcelIcon />
+              </IconButton>
+              <IconButton title="백업 다운로드" onClick={handleBackupDownload}>
+                <DownloadIcon />
+              </IconButton>
+              <IconButton
+                title="백업 불러오기"
+                onClick={() => backupInputRef.current?.click()}
+              >
+                <UploadIcon />
+              </IconButton>
+            </div>
             <CollapsibleSection
               id="settings"
               title="설정"
