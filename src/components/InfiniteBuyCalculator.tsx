@@ -233,66 +233,70 @@ function TodayCalculator({
 
   return (
     <CollapsibleSection id="today-calculator" title="오늘 매입 계산기">
-      <div className="flex flex-wrap items-end gap-5">
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="text-[var(--text-muted)]">오늘 매입단가</span>
-          <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-wrap items-end gap-5">
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-[var(--text-muted)]">오늘 매입단가</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={todayPrice}
+                onChange={(e) => setTodayPrice(Number(e.target.value))}
+                className={`${inputClass} w-40`}
+              />
+              {stock.ticker && (
+                <button
+                  type="button"
+                  onClick={() => quote && setTodayPrice(quote.price)}
+                  disabled={!quote}
+                  className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {quote
+                    ? `실시간가 적용 (${won(quote.price)})`
+                    : liveState?.loading
+                      ? "불러오는 중…"
+                      : "실시간 시세 대기 중"}
+                </button>
+              )}
+            </div>
+          </label>
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="text-[var(--text-muted)]">변동률</span>
+            <PhaseBadge
+              phase={suggestion.phase}
+              changePercent={suggestion.changePercent}
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-end gap-5">
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-[var(--text-muted)]">
+              주문 매수량
+              {qtyOverride !== null && qtyOverride !== suggestion.buyQty && (
+                <span className="ml-1 text-[var(--text-muted)]">
+                  (추천 {suggestion.buyQty.toLocaleString("ko-KR")}주)
+                </span>
+              )}
+            </span>
             <input
               type="number"
-              value={todayPrice}
-              onChange={(e) => setTodayPrice(Number(e.target.value))}
-              className={`${inputClass} w-40`}
+              value={buyQty}
+              onChange={(e) => setQtyOverride(Number(e.target.value))}
+              className={`${inputClass} w-24`}
             />
-            {stock.ticker && (
-              <button
-                type="button"
-                onClick={() => quote && setTodayPrice(quote.price)}
-                disabled={!quote}
-                className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {quote
-                  ? `실시간가 적용 (${won(quote.price)})`
-                  : liveState?.loading
-                    ? "불러오는 중…"
-                    : "실시간 시세 대기 중"}
-              </button>
-            )}
+          </label>
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="text-[var(--text-muted)]">매입금액</span>
+            <span className="font-semibold tabular-nums">{won(buyAmount)}</span>
           </div>
-        </label>
-        <div className="flex flex-col gap-1.5 text-sm">
-          <span className="text-[var(--text-muted)]">변동률</span>
-          <PhaseBadge
-            phase={suggestion.phase}
-            changePercent={suggestion.changePercent}
-          />
+          <button
+            onClick={addToLog}
+            disabled={buyQty <= 0}
+            className="rounded-lg bg-[var(--accent-hover)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            매수 기록에 추가
+          </button>
         </div>
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="text-[var(--text-muted)]">
-            주문 매수량
-            {qtyOverride !== null && qtyOverride !== suggestion.buyQty && (
-              <span className="ml-1 text-[var(--text-muted)]">
-                (추천 {suggestion.buyQty.toLocaleString("ko-KR")}주)
-              </span>
-            )}
-          </span>
-          <input
-            type="number"
-            value={buyQty}
-            onChange={(e) => setQtyOverride(Number(e.target.value))}
-            className={`${inputClass} w-24`}
-          />
-        </label>
-        <div className="flex flex-col gap-1.5 text-sm">
-          <span className="text-[var(--text-muted)]">매입금액</span>
-          <span className="font-semibold tabular-nums">{won(buyAmount)}</span>
-        </div>
-        <button
-          onClick={addToLog}
-          disabled={buyQty <= 0}
-          className="rounded-lg bg-[var(--accent-hover)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          매수 기록에 추가
-        </button>
       </div>
 
       {!stock.ticker && (
