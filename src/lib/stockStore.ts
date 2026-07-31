@@ -11,6 +11,11 @@ import {
 
 export const STOCKS_KEY = "infinite-buy:stocks";
 export const ACTIVE_KEY = "infinite-buy:active-id";
+// 로컬 변경사항이 서버로 확실히 전송되기 전까지 "true"로 표시한다.
+// 브라우저가 갑자기 닫히거나(전원 종료 등) 저장 요청이 실패해도, 다음에 다시
+// 열었을 때 이 값이 true면 서버 값으로 로컬을 덮어쓰지 않고 반대로 로컬 값을
+// 서버에 다시 밀어올린다 — 저장 안 된 마지막 변경사항이 조용히 사라지는 걸 막는다.
+export const PENDING_SYNC_KEY = "infinite-buy:pending-sync";
 // 이전 단일 종목 버전에서 쓰던 키 (있으면 첫 종목으로 이전)
 const LEGACY_SETTINGS_KEY = "infinite-buy:settings";
 const LEGACY_LOG_KEY = "infinite-buy:log";
@@ -63,17 +68,36 @@ export async function fetchRemoteState(): Promise<RemoteFetchResult> {
   }
 }
 
+export function markPendingSync() {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(PENDING_SYNC_KEY, "true");
+}
+
+export function isPendingSync(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(PENDING_SYNC_KEY) === "true";
+}
+
 export async function saveRemoteState(
   stocks: Stock[],
   activeId: string,
-): Promise<void> {
+  options?: { keepalive?: boolean },
+): Promise<boolean> {
   try {
-    await fetch("/api/state", {
+    const res = await fetch("/api/state", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stocks, activeId }),
+      keepalive: options?.keepalive,
     });
+    if (res.ok) {
+      window.localStorage.setItem(PENDING_SYNC_KEY, "false");
+      return true;
+    }
+    return false;
   } catch {
-    // 네트워크 오류는 조용히 무시 — localStorage가 여전히 로컬 백업 역할을 한다.
+    // 네트워크 오류는 조용히 무시 — localStorage가 여전히 로컬 백업 역할을 하고,
+    // PENDING_SYNC_KEY가 true로 남아있어 다음 접속 때 다시 서버로 밀어올린다.
+    return false;
   }
 }

@@ -17,8 +17,10 @@ import {
   ACTIVE_KEY,
   STOCKS_KEY,
   fetchRemoteState,
+  isPendingSync,
   loadJSON,
   loadStocks,
+  markPendingSync,
   saveRemoteState,
 } from "@/lib/stockStore";
 import { downloadBackup, parseBackupFile } from "@/lib/backup";
@@ -437,11 +439,16 @@ export default function InfiniteBuyCalculator() {
         retryTimer = setTimeout(tryHydrate, 4000);
         return;
       }
-      if (result.state) {
+      setRemoteSyncFailed(false);
+      if (isPendingSync()) {
+        // 지난 세션에서 만든 변경사항이 서버로 확실히 전송되지 못한 채 남아있다.
+        // 서버 값(더 오래된 값)으로 지금 로컬 상태를 덮어쓰면 그 변경사항이
+        // 사라지므로, 반대로 지금 로컬 상태를 서버로 다시 밀어올린다.
+        saveRemoteState(stocks, activeId);
+      } else if (result.state) {
         setStocks(result.state.stocks);
         setActiveId(result.state.activeId);
       }
-      setRemoteSyncFailed(false);
       setHasHydratedRemote(true);
     }
 
@@ -450,15 +457,44 @@ export default function InfiniteBuyCalculator() {
       cancelled = true;
       clearTimeout(retryTimer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!hasHydratedRemote) return;
+    markPendingSync();
     const id = setTimeout(() => {
       saveRemoteState(stocks, activeId);
     }, 800);
     return () => clearTimeout(id);
   }, [stocks, activeId, hasHydratedRemote]);
+
+  // 탭을 닫거나 다른 화면으로 전환하는 순간(=창을 완전히 닫기 직전 마지막 기회)
+  // 저장이 안 된 변경사항을 즉시 전송한다. keepalive 덕분에 페이지가 언로드
+  // 되는 도중에도 요청이 취소되지 않고 이어진다. 그래도 실패하면(오프라인 등)
+  // PENDING_SYNC_KEY가 true로 남아있으니 다음에 열 때 위 하이드레이션 로직이
+  // 다시 서버로 밀어올린다.
+  const latestStateRef = useRef({ stocks, activeId });
+  useEffect(() => {
+    latestStateRef.current = { stocks, activeId };
+  }, [stocks, activeId]);
+
+  useEffect(() => {
+    if (!hasHydratedRemote) return;
+    const flush = () => {
+      const { stocks: s, activeId: a } = latestStateRef.current;
+      saveRemoteState(s, a, { keepalive: true });
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [hasHydratedRemote]);
 
   const activeStock = stocks.find((s) => s.id === activeId) ?? stocks[0];
 
