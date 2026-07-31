@@ -419,22 +419,36 @@ export default function InfiniteBuyCalculator() {
   }, [activeId]);
 
   // 브라우저가 초기화돼도 데이터가 남아있도록, 서버(DB)에 저장된 상태가 있으면
-  // 로컬 캐시보다 우선해서 덮어쓴다. 최초 fetch가 끝나기 전까지는 저장을 미룬다
-  // (빈 상태로 서버 데이터를 덮어쓰는 걸 방지).
+  // 로컬 캐시보다 우선해서 덮어쓴다. 서버 fetch를 "성공적으로 확인"하기 전까지는
+  // 절대 자동저장을 켜지 않는다 — 네트워크 오류로 fetch가 실패했는데도 저장을
+  // 켜버리면, 로컬의 빈/기본 상태가 서버의 진짜 데이터를 덮어쓸 수 있다.
   const [hasHydratedRemote, setHasHydratedRemote] = useState(false);
+  const [remoteSyncFailed, setRemoteSyncFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    fetchRemoteState().then((remote) => {
+    let retryTimer: ReturnType<typeof setTimeout>;
+
+    async function tryHydrate() {
+      const result = await fetchRemoteState();
       if (cancelled) return;
-      if (remote) {
-        setStocks(remote.stocks);
-        setActiveId(remote.activeId);
+      if (!result.ok) {
+        setRemoteSyncFailed(true);
+        retryTimer = setTimeout(tryHydrate, 4000);
+        return;
       }
+      if (result.state) {
+        setStocks(result.state.stocks);
+        setActiveId(result.state.activeId);
+      }
+      setRemoteSyncFailed(false);
       setHasHydratedRemote(true);
-    });
+    }
+
+    tryHydrate();
     return () => {
       cancelled = true;
+      clearTimeout(retryTimer);
     };
   }, []);
 
@@ -604,6 +618,12 @@ export default function InfiniteBuyCalculator() {
         </header>
         {backupError && (
           <p className="-mt-4 text-xs text-[var(--critical)]">{backupError}</p>
+        )}
+        {!hasHydratedRemote && remoteSyncFailed && (
+          <p className="-mt-4 text-xs text-[var(--critical)]">
+            서버 연결에 실패해서 재시도하는 중이에요. 이 상태에서는 변경사항이
+            서버에 저장되지 않으니, 연결이 복구될 때까지 잠시 기다려주세요.
+          </p>
         )}
 
         {/* 종목 탭 */}

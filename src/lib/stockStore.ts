@@ -45,15 +45,21 @@ export interface RemoteState {
   activeId: string;
 }
 
-export async function fetchRemoteState(): Promise<RemoteState | null> {
+// "서버에 데이터가 없음"과 "서버에 연결하지 못함"을 반드시 구분해야 한다.
+// 둘 다 그냥 null로 합쳐버리면, 일시적인 네트워크 오류가 났을 때도 자동저장이
+// 켜져서 로컬의 빈/기본 상태로 서버의 진짜 데이터를 덮어써버릴 수 있다.
+export type RemoteFetchResult =
+  { ok: true; state: RemoteState | null } | { ok: false };
+
+export async function fetchRemoteState(): Promise<RemoteFetchResult> {
   try {
     const res = await fetch("/api/state", { cache: "no-store" });
-    if (!res.ok) return null;
+    if (!res.ok) return { ok: false };
     const data = await res.json();
-    if (!data.stocks || !data.activeId) return null;
-    return data as RemoteState;
+    if (!data.stocks || !data.activeId) return { ok: true, state: null };
+    return { ok: true, state: data as RemoteState };
   } catch {
-    return null;
+    return { ok: false };
   }
 }
 

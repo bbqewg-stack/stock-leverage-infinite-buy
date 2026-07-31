@@ -48,8 +48,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchRemoteState().then((remote) => {
-      if (!cancelled && remote) setStocks(remote.stocks);
+    fetchRemoteState().then((result) => {
+      if (!cancelled && result.ok && result.state)
+        setStocks(result.state.stocks);
     });
     return () => {
       cancelled = true;
