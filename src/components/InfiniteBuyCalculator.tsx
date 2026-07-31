@@ -919,7 +919,7 @@ export default function InfiniteBuyCalculator() {
                 </button>
               }
             >
-              <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-4">
                 {SETTINGS_FIELDS.map((field) => (
                   <label
                     key={field.key}
