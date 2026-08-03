@@ -31,6 +31,7 @@ import { exportStockToExcel } from "@/lib/exportExcel";
 import { useLivePrices, type LiveQuoteState } from "@/lib/useLivePrices";
 import LivePriceSidebar from "@/components/LivePriceSidebar";
 import TradeLogCharts from "@/components/TradeLogCharts";
+import { isValidTickerCode } from "@/lib/tickerCode";
 
 const won = (n: number) => `${Math.round(n).toLocaleString("ko-KR")}원`;
 const pct = (n: number) => `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
@@ -478,8 +479,9 @@ function TodayCalculator({
 
       {!stock.ticker && (
         <p className="mt-3 text-xs text-[var(--text-muted)]">
-          종목 탭 아래 &ldquo;종목 코드 등록&rdquo;에 네이버 금융 6자리 코드를
-          입력하면 좌측 패널에서 실시간 시세가 자동으로 갱신돼요.
+          종목 탭 아래 &ldquo;종목 코드 등록&rdquo;에 네이버 금융 코드를
+          입력하면 좌측 패널에서 실시간 시세가 자동으로 갱신돼요. (국내 6자리,
+          해외는 .INX / AAPL.O 형식)
         </p>
       )}
       {stock.ticker && quote && (
@@ -518,7 +520,7 @@ export default function InfiniteBuyCalculator() {
   useEffect(() => {
     if (!isAddingStock) return;
     const code = newStockTicker.trim();
-    if (!/^\d{6}$/.test(code) || newStockName.trim()) return;
+    if (!isValidTickerCode(code) || newStockName.trim()) return;
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsFetchingNewStockName(true);
@@ -671,7 +673,7 @@ export default function InfiniteBuyCalculator() {
   async function submitNewStock(e: React.SubmitEvent) {
     e.preventDefault();
     const ticker = newStockTicker.trim();
-    const validTicker = /^\d{6}$/.test(ticker) ? ticker : undefined;
+    const validTicker = isValidTickerCode(ticker) ? ticker : undefined;
     let name = newStockName.trim();
     let settings = defaultSettings;
     if (validTicker) {
@@ -712,8 +714,10 @@ export default function InfiniteBuyCalculator() {
   function submitTicker(e: React.SubmitEvent) {
     e.preventDefault();
     const ticker = tickerValue.trim();
-    if (ticker && !/^\d{6}$/.test(ticker)) {
-      setTickerError("6자리 숫자로 입력하세요 (예: 069500).");
+    if (ticker && !isValidTickerCode(ticker)) {
+      setTickerError(
+        "국내는 6자리 숫자(예: 069500), 해외는 .INX / AAPL.O 형식으로 입력하세요.",
+      );
       return;
     }
     updateStock(activeStock.id, (s) => ({ ...s, ticker: ticker || undefined }));
@@ -936,8 +940,8 @@ export default function InfiniteBuyCalculator() {
                   autoFocus
                   value={tickerValue}
                   onChange={(e) => setTickerValue(e.target.value)}
-                  placeholder="예: 069500"
-                  className="w-24 rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
+                  placeholder="069500 / .INX / AAPL.O"
+                  className="w-32 rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
                 />
                 <button
                   type="submit"

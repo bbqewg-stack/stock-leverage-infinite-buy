@@ -145,7 +145,7 @@ export function summarizeTradeLog(entries: TradeLogEntry[]): TradeLogSummary {
 export interface Stock {
   id: string;
   name: string; // 종목명 (예: ACE 레버리지)
-  ticker?: string; // 네이버 금융 종목코드 (6자리, 실시간 시세 조회용)
+  ticker?: string; // 네이버 금융 종목코드 (국내 6자리 또는 해외 .INX/AAPL.O 형식, 실시간 시세 조회용)
   settings: InfiniteBuySettings;
   log: TradeLogEntry[];
 }
