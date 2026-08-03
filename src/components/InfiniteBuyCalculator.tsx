@@ -673,22 +673,28 @@ export default function InfiniteBuyCalculator() {
     const ticker = newStockTicker.trim();
     const validTicker = /^\d{6}$/.test(ticker) ? ticker : undefined;
     let name = newStockName.trim();
-    if (!name && validTicker) {
+    let settings = defaultSettings;
+    if (validTicker) {
       // 자동조회가 아직 안 끝났거나 실패했을 수 있으니, 제출 시점에 한 번 더 시도한다.
+      // 종목명뿐 아니라 기준단가도 실제 시세로 맞춰야, 오늘 매입단가가 실시간가로
+      // 자동 채워졌을 때 변동률이 수백 %로 튀어 추천 매수량이 0으로 죽지 않는다.
       try {
         const res = await fetch(`/api/stock-price?code=${validTicker}`, {
           cache: "no-store",
         });
         if (res.ok) {
           const data = await res.json();
-          if (data?.name) name = data.name;
+          if (!name && data?.name) name = data.name;
+          if (typeof data?.price === "number" && data.price > 0) {
+            settings = { ...defaultSettings, basePrice: data.price };
+          }
         }
       } catch {
-        // 조회 실패는 무시하고 아래에서 이름 없음으로 처리한다.
+        // 조회 실패는 무시하고 아래에서 기본값으로 처리한다.
       }
     }
     if (!name) return;
-    const stock = createStock(name, defaultSettings, validTicker);
+    const stock = createStock(name, settings, validTicker);
     setStocks((prev) => [...prev, stock]);
     setActiveId(stock.id);
     setNewStockName("");
