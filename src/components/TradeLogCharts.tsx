@@ -16,12 +16,21 @@ interface Point {
   profitPercent: number;
 }
 
+// 매도는 매도 시점의 가중평균 매입단가로 원가를 덜어낸다 — summarizeTradeLog와
+// 동일한 방식으로 계산해야 그래프와 요약 카드 숫자가 서로 어긋나지 않는다.
 function buildPoints(log: TradeLogEntry[], currentPrice?: number): Point[] {
   let cumQty = 0;
   let cumAmount = 0;
   return log.map((entry) => {
-    cumQty += entry.qty;
-    cumAmount += entry.price * entry.qty;
+    if (entry.type === "sell") {
+      const avgCost = cumQty > 0 ? cumAmount / cumQty : 0;
+      const sellQty = Math.min(entry.qty, cumQty);
+      cumQty -= sellQty;
+      cumAmount -= sellQty * avgCost;
+    } else {
+      cumQty += entry.qty;
+      cumAmount += entry.price * entry.qty;
+    }
     const avgPrice = cumQty > 0 ? cumAmount / cumQty : 0;
     const marketValue =
       currentPrice !== undefined ? cumQty * currentPrice : cumAmount;

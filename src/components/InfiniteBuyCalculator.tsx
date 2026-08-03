@@ -8,6 +8,7 @@ import {
   ScheduleRow,
   Stock,
   TradeLogEntry,
+  TradeLogSummary,
   computeSchedule,
   computeTodaySuggestion,
   createStock,
@@ -33,7 +34,11 @@ import TradeLogCharts from "@/components/TradeLogCharts";
 
 const won = (n: number) => `${Math.round(n).toLocaleString("ko-KR")}원`;
 const pct = (n: number) => `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const nowStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
 
 function loadInitialState(): { stocks: Stock[]; activeId: string } {
   const stocks = loadStocks();
@@ -143,6 +148,21 @@ function PhaseBadge({
       }`}
     >
       {isRise ? "▲" : "▼"} {pct(changePercent)}
+    </span>
+  );
+}
+
+function TradeTypeBadge({ type }: { type?: "buy" | "sell" }) {
+  const isSell = type === "sell";
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+        isSell
+          ? "bg-[var(--surface-2)] text-[var(--text-secondary)]"
+          : "bg-[var(--accent)]/10 text-[var(--accent-text)]"
+      }`}
+    >
+      {isSell ? "매도" : "매수"}
     </span>
   );
 }
@@ -264,22 +284,35 @@ function StatTile({
 function TodayCalculator({
   stock,
   liveState,
+  summary,
   onAdd,
   onRefresh,
 }: {
   stock: Stock;
   liveState?: LiveQuoteState;
+  summary: TradeLogSummary;
   onAdd: (entry: TradeLogEntry) => void;
   onRefresh: () => void;
 }) {
+  const quote = liveState?.quote;
+  const [mode, setMode] = useState<"buy" | "sell">("buy");
+
+  // 종목별 실시간 시세가 있으면 그 값을 기본값으로 쓰고, 없으면 기준단가로
+  // 시작한다. 사용자가 직접 값을 고치기 전까지는 시세가 갱신될 때마다 따라간다.
   const [todayPrice, setTodayPrice] = useState<number>(
-    stock.settings.basePrice,
+    () => quote?.price ?? stock.settings.basePrice,
   );
+  const [priceManuallySet, setPriceManuallySet] = useState(false);
+  const [lastQuotePrice, setLastQuotePrice] = useState(quote?.price);
+  if (quote && quote.price !== lastQuotePrice) {
+    setLastQuotePrice(quote.price);
+    if (!priceManuallySet) setTodayPrice(quote.price);
+  }
+
   const suggestion = computeTodaySuggestion(
     todayPrice || stock.settings.basePrice,
     stock.settings,
   );
-  const quote = liveState?.quote;
 
   // 매수 스케줄대로 무조건 사겠다는 보장이 없으니, 추천 매수량은 기본값으로만
   // 쓰고 실제 매수 직전에 수량을 직접 조정할 수 있게 한다. 매입단가가
@@ -291,36 +324,86 @@ function TodayCalculator({
     setQtyOverride(null);
   }
 
+  // 매도 수량은 기본값으로 보유수량 전체(10% 상승 시 전량 매도 원칙)를 제안하고,
+  // 보유수량이 바뀌면(다른 매수/매도 반영) 아직 손대지 않은 값은 다시 맞춘다.
+  const [sellQtyOverride, setSellQtyOverride] = useState<number | null>(null);
+  const [lastHeldQtyForSell, setLastHeldQtyForSell] = useState(
+    summary.totalQty,
+  );
+  if (summary.totalQty !== lastHeldQtyForSell) {
+    setLastHeldQtyForSell(summary.totalQty);
+    setSellQtyOverride(null);
+  }
+
   const buyQty = qtyOverride ?? suggestion.buyQty;
+  const sellQty = sellQtyOverride ?? summary.totalQty;
+  const qty = mode === "buy" ? buyQty : sellQty;
   const price = todayPrice || stock.settings.basePrice;
-  const buyAmount = buyQty * price;
+  const amount = qty * price;
+  const exceedsHolding = mode === "sell" && sellQty > summary.totalQty;
+  const canSubmit = qty > 0 && !exceedsHolding;
 
   function addToLog() {
     onAdd({
       id: crypto.randomUUID(),
-      date: todayStr(),
+      date: nowStr(),
+      type: mode,
       price,
-      qty: buyQty,
+      qty,
     });
+    if (mode === "sell") setSellQtyOverride(null);
   }
 
   return (
     <CollapsibleSection id="today-calculator" title="오늘 매입 계산기">
+      <div className="mb-4 inline-flex rounded-lg border border-[var(--hairline)] p-0.5 text-sm">
+        <button
+          type="button"
+          onClick={() => setMode("buy")}
+          className={`rounded-md px-3 py-1.5 font-medium transition ${
+            mode === "buy"
+              ? "bg-[var(--accent-hover)] text-white"
+              : "text-[var(--text-secondary)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          매수
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("sell")}
+          className={`rounded-md px-3 py-1.5 font-medium transition ${
+            mode === "sell"
+              ? "bg-[var(--accent-hover)] text-white"
+              : "text-[var(--text-secondary)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          매도
+        </button>
+      </div>
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-end gap-5">
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="text-[var(--text-muted)]">오늘 매입단가</span>
+            <span className="text-[var(--text-muted)]">
+              오늘 {mode === "buy" ? "매입단가" : "매도단가"}
+            </span>
             <div className="flex items-center gap-2">
               <input
                 type="number"
                 value={todayPrice}
-                onChange={(e) => setTodayPrice(Number(e.target.value))}
+                onChange={(e) => {
+                  setTodayPrice(Number(e.target.value));
+                  setPriceManuallySet(true);
+                }}
                 className={`${inputClass} w-40`}
               />
               {stock.ticker && (
                 <button
                   type="button"
-                  onClick={() => quote && setTodayPrice(quote.price)}
+                  onClick={() => {
+                    if (!quote) return;
+                    setTodayPrice(quote.price);
+                    setPriceManuallySet(false);
+                  }}
                   disabled={!quote}
                   className="whitespace-nowrap rounded-lg border border-[var(--hairline)] px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--accent-text)] disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -333,43 +416,64 @@ function TodayCalculator({
               )}
             </div>
           </label>
-          <div className="flex flex-col gap-1.5 text-sm">
-            <span className="text-[var(--text-muted)]">변동률</span>
-            <PhaseBadge
-              phase={suggestion.phase}
-              changePercent={suggestion.changePercent}
-            />
-          </div>
+          {mode === "buy" && (
+            <div className="flex flex-col gap-1.5 text-sm">
+              <span className="text-[var(--text-muted)]">변동률</span>
+              <PhaseBadge
+                phase={suggestion.phase}
+                changePercent={suggestion.changePercent}
+              />
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-end gap-5">
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="text-[var(--text-muted)]">
-              주문 매수량
-              {qtyOverride !== null && qtyOverride !== suggestion.buyQty && (
+              {mode === "buy" ? "주문 매수량" : "매도 수량"}
+              {mode === "buy" &&
+                qtyOverride !== null &&
+                qtyOverride !== suggestion.buyQty && (
+                  <span className="ml-1 text-[var(--text-muted)]">
+                    (추천 {suggestion.buyQty.toLocaleString("ko-KR")}주)
+                  </span>
+                )}
+              {mode === "sell" && (
                 <span className="ml-1 text-[var(--text-muted)]">
-                  (추천 {suggestion.buyQty.toLocaleString("ko-KR")}주)
+                  (보유 {summary.totalQty.toLocaleString("ko-KR")}주)
                 </span>
               )}
             </span>
             <input
               type="number"
-              value={buyQty}
-              onChange={(e) => setQtyOverride(Number(e.target.value))}
+              value={qty}
+              onChange={(e) => {
+                const value = Number(e.target.value);
+                if (mode === "buy") setQtyOverride(value);
+                else setSellQtyOverride(value);
+              }}
               className={`${inputClass} w-24`}
             />
           </label>
           <div className="flex flex-col gap-1.5 text-sm">
-            <span className="text-[var(--text-muted)]">매입금액</span>
-            <span className="font-semibold tabular-nums">{won(buyAmount)}</span>
+            <span className="text-[var(--text-muted)]">
+              {mode === "buy" ? "매입금액" : "매도금액"}
+            </span>
+            <span className="font-semibold tabular-nums">{won(amount)}</span>
           </div>
           <button
             onClick={addToLog}
-            disabled={buyQty <= 0}
+            disabled={!canSubmit}
             className="rounded-lg bg-[var(--accent-hover)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            매수 기록에 추가
+            {mode === "buy" ? "매수 기록에 추가" : "매도 기록에 추가"}
           </button>
         </div>
+        {exceedsHolding && (
+          <p className="text-xs text-[var(--critical)]">
+            보유수량({summary.totalQty.toLocaleString("ko-KR")}주)보다 많이 팔
+            수 없어요.
+          </p>
+        )}
       </div>
 
       {!stock.ticker && (
@@ -407,6 +511,32 @@ export default function InfiniteBuyCalculator() {
   const [isAddingStock, setIsAddingStock] = useState(false);
   const [newStockName, setNewStockName] = useState("");
   const [newStockTicker, setNewStockTicker] = useState("");
+  const [isFetchingNewStockName, setIsFetchingNewStockName] = useState(false);
+
+  // 종목코드만 입력하고 종목명은 비워두면, 네이버 금융에서 종목명을 조회해
+  // 자동으로 채워준다. 사용자가 이미 이름을 직접 입력했다면 건드리지 않는다.
+  useEffect(() => {
+    if (!isAddingStock) return;
+    const code = newStockTicker.trim();
+    if (!/^\d{6}$/.test(code) || newStockName.trim()) return;
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsFetchingNewStockName(true);
+    fetch(`/api/stock-price?code=${code}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.name) return;
+        setNewStockName((current) => (current.trim() ? current : data.name));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setIsFetchingNewStockName(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newStockTicker, isAddingStock]);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [isEditingTicker, setIsEditingTicker] = useState(false);
@@ -538,16 +668,27 @@ export default function InfiniteBuyCalculator() {
     }));
   }
 
-  function submitNewStock(e: React.SubmitEvent) {
+  async function submitNewStock(e: React.SubmitEvent) {
     e.preventDefault();
-    const name = newStockName.trim();
-    if (!name) return;
     const ticker = newStockTicker.trim();
-    const stock = createStock(
-      name,
-      defaultSettings,
-      /^\d{6}$/.test(ticker) ? ticker : undefined,
-    );
+    const validTicker = /^\d{6}$/.test(ticker) ? ticker : undefined;
+    let name = newStockName.trim();
+    if (!name && validTicker) {
+      // 자동조회가 아직 안 끝났거나 실패했을 수 있으니, 제출 시점에 한 번 더 시도한다.
+      try {
+        const res = await fetch(`/api/stock-price?code=${validTicker}`, {
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.name) name = data.name;
+        }
+      } catch {
+        // 조회 실패는 무시하고 아래에서 이름 없음으로 처리한다.
+      }
+    }
+    if (!name) return;
+    const stock = createStock(name, defaultSettings, validTicker);
     setStocks((prev) => [...prev, stock]);
     setActiveId(stock.id);
     setNewStockName("");
@@ -705,14 +846,16 @@ export default function InfiniteBuyCalculator() {
                 autoFocus
                 value={newStockName}
                 onChange={(e) => setNewStockName(e.target.value)}
-                placeholder="종목명 입력"
+                placeholder={
+                  isFetchingNewStockName ? "종목명 불러오는 중…" : "종목명 입력"
+                }
                 className="w-32 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
               />
               <input
                 value={newStockTicker}
                 onChange={(e) => setNewStockTicker(e.target.value)}
-                placeholder="종목코드 (선택)"
-                className="w-28 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+                placeholder="종목코드만 입력해도 OK"
+                className="w-32 rounded-full border border-[var(--hairline)] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
               />
               <button
                 type="submit"
@@ -877,7 +1020,7 @@ export default function InfiniteBuyCalculator() {
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <StatTile
-                  label="총 매수량"
+                  label="보유수량"
                   value={`${summary.totalQty.toLocaleString("ko-KR")}주`}
                 />
                 <StatTile
@@ -916,6 +1059,14 @@ export default function InfiniteBuyCalculator() {
                       : undefined
                   }
                 />
+                {summary.realizedProfit !== 0 && (
+                  <StatTile
+                    label="실현손익"
+                    value={`${summary.realizedProfit >= 0 ? "+" : ""}${won(summary.realizedProfit)}`}
+                    sub="매도로 확정된 손익"
+                    tone={summary.realizedProfit >= 0 ? "rise" : "fall"}
+                  />
+                )}
               </div>
               {summary.totalQty > 0 && !activeQuote && (
                 <p className="mt-3 text-xs text-[var(--text-muted)]">
@@ -932,6 +1083,7 @@ export default function InfiniteBuyCalculator() {
               liveState={
                 activeStock.ticker ? quotes[activeStock.ticker] : undefined
               }
+              summary={summary}
               onAdd={addToLog}
               onRefresh={refresh}
             />
@@ -944,19 +1096,14 @@ export default function InfiniteBuyCalculator() {
                 </p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[480px] text-sm">
+                  <table className="w-full min-w-[560px] text-sm">
                     <thead>
                       <tr className="border-b border-[var(--hairline)] text-left text-[var(--text-muted)]">
-                        <th className="py-1.5 font-normal">날짜</th>
-                        <th className="py-1.5 text-right font-normal">
-                          매입단가
-                        </th>
-                        <th className="py-1.5 text-right font-normal">
-                          매수량
-                        </th>
-                        <th className="py-1.5 text-right font-normal">
-                          매입금액
-                        </th>
+                        <th className="py-1.5 font-normal">날짜/시간</th>
+                        <th className="py-1.5 font-normal">구분</th>
+                        <th className="py-1.5 text-right font-normal">단가</th>
+                        <th className="py-1.5 text-right font-normal">수량</th>
+                        <th className="py-1.5 text-right font-normal">금액</th>
                         <th className="py-1.5 font-normal" />
                       </tr>
                     </thead>
@@ -967,6 +1114,9 @@ export default function InfiniteBuyCalculator() {
                           className="border-b border-[var(--hairline)]/60"
                         >
                           <td className="py-1.5">{entry.date}</td>
+                          <td className="py-1.5">
+                            <TradeTypeBadge type={entry.type} />
+                          </td>
                           <td className="py-1.5 text-right tabular-nums">
                             {won(entry.price)}
                           </td>

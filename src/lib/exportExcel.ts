@@ -18,10 +18,11 @@ export function exportStockToExcel(stock: Stock, schedule: ScheduleRow[]) {
 
   const wsLog = XLSX.utils.json_to_sheet(
     stock.log.map((e) => ({
-      날짜: e.date,
-      매입단가: e.price,
-      매수량: e.qty,
-      매입금액: e.price * e.qty,
+      "날짜/시간": e.date,
+      구분: e.type === "sell" ? "매도" : "매수",
+      단가: e.price,
+      수량: e.qty,
+      금액: e.price * e.qty,
     })),
   );
   XLSX.utils.book_append_sheet(wb, wsLog, "매수 기록");

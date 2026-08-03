@@ -104,7 +104,8 @@ export function computeTodaySuggestion(
 
 export interface TradeLogEntry {
   id: string;
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD HH:mm
+  type?: "buy" | "sell"; // 없으면 매수(과거 기록과의 호환)
   price: number;
   qty: number;
 }
@@ -113,13 +114,31 @@ export interface TradeLogSummary {
   totalQty: number;
   totalAmount: number;
   avgPrice: number;
+  realizedProfit: number; // 매도로 실현된 손익 누적 (가중평균 매입단가 기준)
 }
 
+// 매도는 매도 시점의 가중평균 매입단가를 기준으로 원가를 덜어내고, 그 차액을
+// 실현손익으로 누적한다 — 남은 보유분의 평단가는 매도로 인해 바뀌지 않는다.
 export function summarizeTradeLog(entries: TradeLogEntry[]): TradeLogSummary {
-  const totalQty = entries.reduce((sum, e) => sum + e.qty, 0);
-  const totalAmount = entries.reduce((sum, e) => sum + e.price * e.qty, 0);
+  let totalQty = 0;
+  let totalAmount = 0;
+  let realizedProfit = 0;
+
+  for (const entry of entries) {
+    if (entry.type === "sell") {
+      const avgPrice = totalQty > 0 ? totalAmount / totalQty : 0;
+      const sellQty = Math.min(entry.qty, totalQty);
+      realizedProfit += sellQty * (entry.price - avgPrice);
+      totalQty -= sellQty;
+      totalAmount -= sellQty * avgPrice;
+    } else {
+      totalQty += entry.qty;
+      totalAmount += entry.price * entry.qty;
+    }
+  }
+
   const avgPrice = totalQty > 0 ? totalAmount / totalQty : 0;
-  return { totalQty, totalAmount, avgPrice };
+  return { totalQty, totalAmount, avgPrice, realizedProfit };
 }
 
 // 종목별로 설정과 매수 기록을 독립적으로 관리하기 위한 단위
