@@ -82,7 +82,9 @@ async function fetchWorldWithFallback(
 }
 
 export async function GET(request: NextRequest) {
-  const code = request.nextUrl.searchParams.get("code");
+  // 네이버 해외 API는 대소문자를 구분한다(".inx"는 실패, ".INX"만 성공) — 국내
+  // 6자리 코드는 숫자뿐이라 영향이 없으므로 항상 대문자로 정규화해도 안전하다.
+  const code = request.nextUrl.searchParams.get("code")?.toUpperCase() ?? null;
   const marketType: MarketType | null = code ? detectMarketType(code) : null;
 
   if (!code || !marketType) {

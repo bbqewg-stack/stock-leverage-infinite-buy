@@ -672,7 +672,7 @@ export default function InfiniteBuyCalculator() {
 
   async function submitNewStock(e: React.SubmitEvent) {
     e.preventDefault();
-    const ticker = newStockTicker.trim();
+    const ticker = newStockTicker.trim().toUpperCase();
     const validTicker = isValidTickerCode(ticker) ? ticker : undefined;
     let name = newStockName.trim();
     let settings = defaultSettings;
@@ -711,18 +711,43 @@ export default function InfiniteBuyCalculator() {
     setIsRenaming(false);
   }
 
-  function submitTicker(e: React.SubmitEvent) {
+  async function submitTicker(e: React.SubmitEvent) {
     e.preventDefault();
-    const ticker = tickerValue.trim();
+    const ticker = tickerValue.trim().toUpperCase();
     if (ticker && !isValidTickerCode(ticker)) {
       setTickerError(
         "국내는 6자리 숫자(예: 069500), 해외는 .INX / AAPL.O 형식으로 입력하세요.",
       );
       return;
     }
-    updateStock(activeStock.id, (s) => ({ ...s, ticker: ticker || undefined }));
     setTickerError(null);
     setIsEditingTicker(false);
+
+    // 아직 매수 기록이 없는 종목에 코드를 처음 등록하는 경우, 기준단가도 실제
+    // 시세로 맞춰준다 — 그대로 두면 오늘 매입단가가 실시간가로 자동 채워졌을 때
+    // 변동률이 수백 %로 튀어 추천 매수량이 0으로 죽는다("+ 종목 추가"와 동일 문제).
+    // 이미 매수 기록이 있는 종목은 기준단가가 의도된 값일 수 있어 건드리지 않는다.
+    if (ticker && activeStock.log.length === 0) {
+      try {
+        const res = await fetch(`/api/stock-price?code=${ticker}`, {
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data?.price === "number" && data.price > 0) {
+            updateStock(activeStock.id, (s) => ({
+              ...s,
+              ticker,
+              settings: { ...s.settings, basePrice: data.price },
+            }));
+            return;
+          }
+        }
+      } catch {
+        // 조회 실패는 무시하고 아래에서 기준단가는 그대로 둔 채 코드만 저장한다.
+      }
+    }
+    updateStock(activeStock.id, (s) => ({ ...s, ticker: ticker || undefined }));
   }
 
   function deleteActiveStock() {
@@ -875,7 +900,11 @@ export default function InfiniteBuyCalculator() {
               </button>
               <button
                 type="button"
-                onClick={() => setIsAddingStock(false)}
+                onClick={() => {
+                  setIsAddingStock(false);
+                  setNewStockName("");
+                  setNewStockTicker("");
+                }}
                 className="text-xs text-[var(--text-muted)] hover:text-[var(--foreground)]"
               >
                 취소
@@ -1069,7 +1098,7 @@ export default function InfiniteBuyCalculator() {
                       : undefined
                   }
                 />
-                {summary.realizedProfit !== 0 && (
+                {Math.round(summary.realizedProfit) !== 0 && (
                   <StatTile
                     label="실현손익"
                     value={`${summary.realizedProfit >= 0 ? "+" : ""}${won(summary.realizedProfit)}`}

@@ -346,7 +346,7 @@ export default function TradeLogCharts({
 
   return (
     <div className="flex flex-col gap-5">
-      <ChartBlock title="누적 매수량">
+      <ChartBlock title="보유수량 추이">
         <LineChart
           points={points}
           getValue={(p) => p.cumQty}
@@ -355,7 +355,7 @@ export default function TradeLogCharts({
         />
       </ChartBlock>
 
-      <ChartBlock title="누적 매입금액">
+      <ChartBlock title="매입원가 추이">
         <LineChart
           points={points}
           getValue={(p) => p.cumAmount}
