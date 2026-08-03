@@ -219,7 +219,7 @@ const UploadIcon = () => (
   >
     <path d="M12 21V9" />
     <path d="M7 14l5-5 5 5" />
-    <path d="M4 20h16" />
+    <path d="M4 4h16" />
   </svg>
 );
 
@@ -739,92 +739,115 @@ export default function InfiniteBuyCalculator() {
         </div>
 
         {/* 현재 종목 관리 */}
-        <div className="-mt-3 flex items-center gap-3 text-xs text-[var(--text-muted)]">
-          {isRenaming ? (
-            <form onSubmit={submitRename} className="flex items-center gap-1.5">
-              <input
-                autoFocus
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                className="rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
-              />
-              <button
-                type="submit"
-                className="font-medium text-[var(--accent-text)]"
+        <div className="-mt-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--text-muted)]">
+            {isRenaming ? (
+              <form
+                onSubmit={submitRename}
+                className="flex items-center gap-1.5"
               >
-                저장
-              </button>
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  className="rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
+                />
+                <button
+                  type="submit"
+                  className="font-medium text-[var(--accent-text)]"
+                >
+                  저장
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsRenaming(false)}
+                  className="hover:text-[var(--foreground)]"
+                >
+                  취소
+                </button>
+              </form>
+            ) : (
               <button
-                type="button"
-                onClick={() => setIsRenaming(false)}
-                className="hover:text-[var(--foreground)]"
-              >
-                취소
-              </button>
-            </form>
-          ) : (
-            <button
-              onClick={() => {
-                setRenameValue(activeStock.name);
-                setIsRenaming(true);
-              }}
-              className="underline underline-offset-2 hover:text-[var(--foreground)]"
-            >
-              종목명 변경
-            </button>
-          )}
-
-          {isEditingTicker ? (
-            <form onSubmit={submitTicker} className="flex items-center gap-1.5">
-              <input
-                autoFocus
-                value={tickerValue}
-                onChange={(e) => setTickerValue(e.target.value)}
-                placeholder="예: 069500"
-                className="w-24 rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
-              />
-              <button
-                type="submit"
-                className="font-medium text-[var(--accent-text)]"
-              >
-                저장
-              </button>
-              <button
-                type="button"
                 onClick={() => {
-                  setIsEditingTicker(false);
-                  setTickerError(null);
+                  setRenameValue(activeStock.name);
+                  setIsRenaming(true);
                 }}
-                className="hover:text-[var(--foreground)]"
+                className="underline underline-offset-2 hover:text-[var(--foreground)]"
               >
-                취소
+                종목명 변경
               </button>
-            </form>
-          ) : (
-            <button
-              onClick={() => {
-                setTickerValue(activeStock.ticker ?? "");
-                setIsEditingTicker(true);
-              }}
-              className="underline underline-offset-2 hover:text-[var(--foreground)]"
-            >
-              {activeStock.ticker
-                ? `종목 코드: ${activeStock.ticker}`
-                : "종목 코드 등록"}
-            </button>
-          )}
-          {tickerError && (
-            <span className="text-[var(--critical)]">{tickerError}</span>
-          )}
+            )}
 
-          {stocks.length > 1 && (
-            <button
-              onClick={deleteActiveStock}
-              className="underline underline-offset-2 hover:text-[var(--critical)]"
+            {isEditingTicker ? (
+              <form
+                onSubmit={submitTicker}
+                className="flex items-center gap-1.5"
+              >
+                <input
+                  autoFocus
+                  value={tickerValue}
+                  onChange={(e) => setTickerValue(e.target.value)}
+                  placeholder="예: 069500"
+                  className="w-24 rounded-md border border-[var(--hairline)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
+                />
+                <button
+                  type="submit"
+                  className="font-medium text-[var(--accent-text)]"
+                >
+                  저장
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditingTicker(false);
+                    setTickerError(null);
+                  }}
+                  className="hover:text-[var(--foreground)]"
+                >
+                  취소
+                </button>
+              </form>
+            ) : (
+              <button
+                onClick={() => {
+                  setTickerValue(activeStock.ticker ?? "");
+                  setIsEditingTicker(true);
+                }}
+                className="underline underline-offset-2 hover:text-[var(--foreground)]"
+              >
+                {activeStock.ticker
+                  ? `종목 코드: ${activeStock.ticker}`
+                  : "종목 코드 등록"}
+              </button>
+            )}
+            {tickerError && (
+              <span className="text-[var(--critical)]">{tickerError}</span>
+            )}
+
+            {stocks.length > 1 && (
+              <button
+                onClick={deleteActiveStock}
+                className="underline underline-offset-2 hover:text-[var(--critical)]"
+              >
+                이 종목 삭제
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <IconButton title="엑셀로 내보내기" onClick={handleExportExcel}>
+              <ExcelIcon />
+            </IconButton>
+            <IconButton title="백업 다운로드" onClick={handleBackupDownload}>
+              <DownloadIcon />
+            </IconButton>
+            <IconButton
+              title="백업 불러오기"
+              onClick={() => backupInputRef.current?.click()}
             >
-              이 종목 삭제
-            </button>
-          )}
+              <UploadIcon />
+            </IconButton>
+          </div>
         </div>
 
         <div className="flex w-full flex-col gap-6 xl:flex-row xl:items-start">
@@ -1022,20 +1045,6 @@ export default function InfiniteBuyCalculator() {
           </div>
 
           <aside className="flex w-full flex-col gap-3 xl:sticky xl:top-6 xl:w-80 xl:shrink-0">
-            <div className="flex items-center justify-end gap-2">
-              <IconButton title="엑셀로 내보내기" onClick={handleExportExcel}>
-                <ExcelIcon />
-              </IconButton>
-              <IconButton title="백업 다운로드" onClick={handleBackupDownload}>
-                <DownloadIcon />
-              </IconButton>
-              <IconButton
-                title="백업 불러오기"
-                onClick={() => backupInputRef.current?.click()}
-              >
-                <UploadIcon />
-              </IconButton>
-            </div>
             <CollapsibleSection
               id="settings"
               title="설정"
