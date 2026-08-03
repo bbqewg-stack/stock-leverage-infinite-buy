@@ -29,6 +29,7 @@ import { downloadBackup, parseBackupFile } from "@/lib/backup";
 import { exportStockToExcel } from "@/lib/exportExcel";
 import { useLivePrices, type LiveQuoteState } from "@/lib/useLivePrices";
 import LivePriceSidebar from "@/components/LivePriceSidebar";
+import TradeLogCharts from "@/components/TradeLogCharts";
 
 const won = (n: number) => `${Math.round(n).toLocaleString("ko-KR")}원`;
 const pct = (n: number) => `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
@@ -1112,6 +1113,14 @@ export default function InfiniteBuyCalculator() {
                   </label>
                 ))}
               </div>
+            </CollapsibleSection>
+
+            <CollapsibleSection id="trade-log-charts" title="매수 기록 그래프">
+              <TradeLogCharts
+                key={activeStock.id}
+                log={activeStock.log}
+                currentPrice={activeQuote?.price}
+              />
             </CollapsibleSection>
           </aside>
         </div>
